@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  stagdb:
+    build: .
+    ports:
+      - "80:8000"
+    volumes:
+      - stagdb_data:/app/data
+    environment:
+      - DJANGO_SETTINGS_MODULE=stagdb.settings
+      - DEBUG=False
+    restart: unless-stopped
+
+volumes:
+  stagdb_data:

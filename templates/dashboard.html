@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StagDB Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .hosts-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .hosts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .host-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .host-card:hover {
+            background-color: #f0f0f0;
+        }
+        .host-card h3 {
+            color: #333;
+            margin: 0 0 10px 0;
+        }
+        .host-card p {
+            color: #666;
+            margin: 5px 0;
+        }
+        .host-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .host-status.active {
+            background-color: #28a745;
+            color: white;
+        }
+        .host-status.inactive {
+            background-color: #dc3545;
+            color: white;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        .empty-state h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .add-host-btn {
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .add-host-btn:hover {
+            background-color: #0056b3;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            color: #333;
+            margin: 0;
+            font-size: 24px;
+        }
+        .stat-card p {
+            color: #666;
+            margin: 5px 0 0 0;
+        }
+        .system-validation {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #007bff;
+        }
+        .system-validation h3 {
+            color: #333;
+            margin: 0 0 15px 0;
+        }
+        .validation-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .validation-button:hover {
+            background-color: #0056b3;
+        }
+        .validation-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .validation-status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .validation-status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .validation-status.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .validation-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .validation-details {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .component-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+        .component-status.pass {
+            background-color: #28a745;
+            color: white;
+        }
+        .component-status.warning {
+            background-color: #ffc107;
+            color: black;
+        }
+        .component-status.fail, .component-status.invalid, .component-status.error {
+            background-color: #dc3545;
+            color: white;
+        }
+        .component-status.pending {
+            background-color: #6c757d;
+            color: white;
+        }
+        .component-status.valid {
+            background-color: #28a745;
+            color: white;
+        }
+        .remove-host-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .remove-host-btn:hover {
+            background-color: #c82333;
+        }
+        .remove-host-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .modal-header h3 {
+            margin: 0;
+            color: #dc3545;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: #000;
+        }
+        .modal-body {
+            margin-bottom: 20px;
+        }
+        .modal-body ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .modal-body li {
+            margin-bottom: 5px;
+        }
+        .warning-text {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #856404;
+        }
+        .error-text {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #721c24;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .modal-btn-cancel {
+            background-color: #6c757d;
+            color: white;
+        }
+        .modal-btn-cancel:hover {
+            background-color: #5a6268;
+        }
+        .modal-btn-remove {
+            background-color: #dc3545;
+            color: white;
+        }
+        .modal-btn-remove:hover {
+            background-color: #c82333;
+        }
+        .modal-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>StagDB Dashboard</h1>
+            <div class="user-info">
+                <span>Welcome, {{ user.username }}</span>
+                <a href="/logout/" class="logout-btn">Logout</a>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>{{ hosts_count }}</h3>
+                <p>Connected Hosts</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ databases_count }}</h3>
+                <p>Total Databases</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ active_hosts_count }}</h3>
+                <p>Active Hosts</p>
+            </div>
+        </div>
+
+        <div class="system-validation">
+            <h3>System Validation</h3>
+            <p>Validate that the Docker host has all required components for database deployment.</p>
+            <button onclick="validateSystem()" class="validation-button" id="validateBtn">
+                Validate Docker Host
+            </button>
+            <button onclick="setupDockerHost()" class="validation-button" id="setupBtn">
+                Setup Docker Host
+            </button>
+            
+            <div id="validationStatus" class="validation-status">
+                <div id="validationMessage"></div>
+                <div id="validationDetails" class="validation-details"></div>
+            </div>
+        </div>
+
+        <div class="hosts-section">
+            <h2>Connected Hosts</h2>
+            
+            {% if hosts %}
+                <div class="hosts-grid">
+                    {% for host in hosts %}
+                        <div class="host-card" onclick="window.location.href='/hosts/{{ host.id }}/'">
+                            <h3>{{ host.name }}</h3>
+                            <p><strong>IP:</strong> {{ host.ip_address }}</p>
+                            <p><strong>Username:</strong> {{ host.username }}</p>
+                            <p><strong>ZFS Pool:</strong> {{ host.zfs_pool|default:"Not configured" }}</p>
+                            <p><strong>Status:</strong> 
+                                <span class="host-status {% if host.is_active %}active{% else %}inactive{% endif %}">
+                                    {% if host.is_active %}Active{% else %}Inactive{% endif %}
+                                </span>
+                            </p>
+                            <p><strong>Validation:</strong>
+                                <span class="component-status {{ host.validation_status|default:'pending' }}">
+                                    {{ host.validation_status|default:'PENDING'|upper }}
+                                </span>
+                                {% if host.validation_status == 'invalid' or host.validation_status == 'error' %}
+                                    <button onclick="event.stopPropagation(); validateHost({{ host.id }})" 
+                                            class="validation-button" style="font-size: 12px; padding: 4px 8px; margin-left: 5px;">
+                                        Validate
+                                    </button>
+                                {% endif %}
+                            </p>
+                            <p><strong>Can Create DBs:</strong> 
+                                <span style="color: {% if host.validation_status == 'valid' or host.validation_status == 'warning' %}green{% else %}red{% endif %};">
+                                    {% if host.validation_status == 'valid' or host.validation_status == 'warning' %}Yes{% else %}No{% endif %}
+                                </span>
+                            </p>
+                            <p><strong>Created:</strong> {{ host.created_at|date:"M d, Y" }}</p>
+                            <div style="margin-top: 10px; text-align: right;">
+                                <button onclick="event.stopPropagation(); showRemoveHostModal({{ host.id }})" 
+                                        class="remove-host-btn" title="Remove host">
+                                    Remove Host
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h3>No Hosts Connected</h3>
+                    <p>Configure storage and connect your first host to start creating databases with instant branching capabilities.</p>
+                    <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">🗄️ Configure Storage</a>
+                    <a href="/hosts/add/" class="add-host-btn">Connect First Host</a>
+                </div>
+            {% endif %}
+            
+            {% if hosts %}
+                <div style="text-align: center;">
+                    <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">🗄️ Configure Storage</a>
+                    <a href="/hosts/add/" class="add-host-btn">Add New Host</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Remove Host Modal -->
+    <div id="removeHostModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Remove Host</h3>
+                <span class="close" onclick="closeRemoveHostModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p><strong>Host:</strong> <span id="modalHostName"></span></p>
+                <p><strong>IP Address:</strong> <span id="modalHostIP"></span></p>
+                
+                <div id="modalCanRemove" style="display: none;">
+                    <div class="warning-text">
+                        <strong>Warning:</strong> This action cannot be undone.
+                        <ul id="modalWarnings"></ul>
+                    </div>
+                    <p>Are you sure you want to remove this host?</p>
+                </div>
+                
+                <div id="modalCannotRemove" style="display: none;">
+                    <div class="error-text">
+                        <strong>Cannot Remove Host:</strong>
+                        <ul id="modalBlockers"></ul>
+                    </div>
+                    <div id="modalDatabases"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" onclick="closeRemoveHostModal()">Cancel</button>
+                <button id="modalRemoveBtn" class="modal-btn modal-btn-remove" onclick="confirmRemoveHost()" style="display: none;">
+                    Remove Host
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showValidationStatus(message, type, details = null) {
+            const statusDiv = document.getElementById('validationStatus');
+            const messageDiv = document.getElementById('validationMessage');
+            const detailsDiv = document.getElementById('validationDetails');
+            
+            statusDiv.className = 'validation-status ' + type;
+            statusDiv.style.display = 'block';
+            messageDiv.textContent = message;
+            
+            if (details) {
+                detailsDiv.innerHTML = details;
+            } else {
+                detailsDiv.innerHTML = '';
+            }
+        }
+
+        function formatComponentStatus(status) {
+            const statusClass = status === 'pass' ? 'pass' : status === 'warning' ? 'warning' : 'fail';
+            return `<span class="component-status ${statusClass}">${status.toUpperCase()}</span>`;
+        }
+
+        function formatValidationDetails(summary) {
+            if (!summary || !summary.components) return '';
+            
+            let html = '<div><strong>Component Status:</strong><br>';
+            
+            for (const [name, component] of Object.entries(summary.components)) {
+                html += `${formatComponentStatus(component.status)} ${name}: ${component.message}<br>`;
+            }
+            
+            html += '</div>';
+            return html;
+        }
+
+        async function validateSystem() {
+            const validateBtn = document.getElementById('validateBtn');
+            validateBtn.disabled = true;
+            validateBtn.textContent = 'Validating...';
+            
+            try {
+                const response = await fetch('/api/system/validate/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        force_revalidation: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const summary = data.summary;
+                    const statusType = summary.status === 'pass' ? 'success' : 
+                                     summary.status === 'warning' ? 'warning' : 'error';
+                    
+                    showValidationStatus(
+                        summary.message,
+                        statusType,
+                        formatValidationDetails(summary)
+                    );
+                } else {
+                    showValidationStatus(
+                        'Validation failed: ' + (data.message || data.error),
+                        'error'
+                    );
+                }
+            } catch (error) {
+                showValidationStatus(
+                    'Network error during validation: ' + error.message,
+                    'error'
+                );
+            } finally {
+                validateBtn.disabled = false;
+                validateBtn.textContent = 'Validate Docker Host';
+            }
+        }
+
+        async function setupDockerHost() {
+            const setupBtn = document.getElementById('setupBtn');
+            setupBtn.disabled = true;
+            setupBtn.textContent = 'Setting up...';
+            
+            try {
+                const response = await fetch('/api/system/setup/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const summary = data.summary;
+                    const statusType = summary.status === 'valid' ? 'success' : 
+                                     summary.status === 'warning' ? 'warning' : 'error';
+                    
+                    let message = `Docker host ${data.docker_host.created ? 'created' : 'updated'} successfully. ${summary.message}`;
+                    
+                    showValidationStatus(
+                        message,
+                        statusType,
+                        formatValidationDetails(summary)
+                    );
+                    
+                    // Refresh the page after a short delay to show updated host list
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    showValidationStatus(
+                        'Setup failed: ' + (data.message || data.error),
+                        'error'
+                    );
+                }
+            } catch (error) {
+                showValidationStatus(
+                    'Network error during setup: ' + error.message,
+                    'error'
+                );
+            } finally {
+                setupBtn.disabled = false;
+                setupBtn.textContent = 'Setup Docker Host';
+            }
+        }
+
+        async function validateHost(hostId) {
+            try {
+                const response = await fetch(`/api/hosts/${hostId}/validate/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const summary = data.summary;
+                    const statusType = summary.status === 'valid' ? 'success' : 
+                                     summary.status === 'warning' ? 'warning' : 'error';
+                    
+                    showValidationStatus(
+                        `Host validation completed: ${summary.message}`,
+                        statusType,
+                        formatValidationDetails(summary)
+                    );
+                    
+                    // Refresh the page to show updated status
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    showValidationStatus(
+                        'Host validation failed: ' + (data.message || data.error),
+                        'error'
+                    );
+                }
+            } catch (error) {
+                showValidationStatus(
+                    'Network error during host validation: ' + error.message,
+                    'error'
+                );
+            }
+        }
+
+        // Get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        let currentHostId = null;
+
+        async function showRemoveHostModal(hostId) {
+            currentHostId = hostId;
+            
+            try {
+                const response = await fetch(`/api/hosts/${hostId}/removal-check/`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const host = data.host;
+                    
+                    // Set host info
+                    document.getElementById('modalHostName').textContent = host.name;
+                    document.getElementById('modalHostIP').textContent = host.ip_address;
+                    
+                    // Clear previous content
+                    document.getElementById('modalCanRemove').style.display = 'none';
+                    document.getElementById('modalCannotRemove').style.display = 'none';
+                    document.getElementById('modalRemoveBtn').style.display = 'none';
+                    
+                    if (data.can_remove) {
+                        // Host can be removed
+                        document.getElementById('modalCanRemove').style.display = 'block';
+                        document.getElementById('modalRemoveBtn').style.display = 'inline-block';
+                        
+                        // Show warnings
+                        const warningsUl = document.getElementById('modalWarnings');
+                        warningsUl.innerHTML = '';
+                        data.warnings.forEach(warning => {
+                            const li = document.createElement('li');
+                            li.textContent = warning;
+                            warningsUl.appendChild(li);
+                        });
+                    } else {
+                        // Host cannot be removed
+                        document.getElementById('modalCannotRemove').style.display = 'block';
+                        
+                        // Show blockers
+                        const blockersUl = document.getElementById('modalBlockers');
+                        blockersUl.innerHTML = '';
+                        data.blockers.forEach(blocker => {
+                            const li = document.createElement('li');
+                            li.textContent = blocker;
+                            blockersUl.appendChild(li);
+                        });
+                        
+                        // Show databases if any
+                        const databasesDiv = document.getElementById('modalDatabases');
+                        if (data.databases && data.databases.length > 0) {
+                            let dbHtml = '<p><strong>Active Databases:</strong></p><ul>';
+                            data.databases.forEach(db => {
+                                dbHtml += `<li>${db.name} (${db.db_type}, port ${db.port})</li>`;
+                            });
+                            dbHtml += '</ul>';
+                            databasesDiv.innerHTML = dbHtml;
+                        } else {
+                            databasesDiv.innerHTML = '';
+                        }
+                    }
+                    
+                    // Show modal
+                    document.getElementById('removeHostModal').style.display = 'block';
+                } else {
+                    showValidationStatus(
+                        'Failed to check host removal status: ' + (data.message || data.error),
+                        'error'
+                    );
+                }
+            } catch (error) {
+                showValidationStatus(
+                    'Network error while checking host removal: ' + error.message,
+                    'error'
+                );
+            }
+        }
+
+        function closeRemoveHostModal() {
+            document.getElementById('removeHostModal').style.display = 'none';
+            currentHostId = null;
+        }
+
+        async function confirmRemoveHost() {
+            if (!currentHostId) return;
+            
+            const removeBtn = document.getElementById('modalRemoveBtn');
+            removeBtn.disabled = true;
+            removeBtn.textContent = 'Removing...';
+            
+            try {
+                const response = await fetch(`/api/hosts/${currentHostId}/remove/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showValidationStatus(
+                        data.message,
+                        'success'
+                    );
+                    
+                    closeRemoveHostModal();
+                    
+                    // Refresh the page to show updated host list
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showValidationStatus(
+                        'Failed to remove host: ' + (data.message || data.error),
+                        'error'
+                    );
+                    
+                    closeRemoveHostModal();
+                }
+            } catch (error) {
+                showValidationStatus(
+                    'Network error during host removal: ' + error.message,
+                    'error'
+                );
+                
+                closeRemoveHostModal();
+            } finally {
+                removeBtn.disabled = false;
+                removeBtn.textContent = 'Remove Host';
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('removeHostModal');
+            if (event.target === modal) {
+                closeRemoveHostModal();
+            }
+        }
+
+        // Load initial status on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                const response = await fetch('/api/system/status/');
+                const data = await response.json();
+                
+                if (data.success && data.summary && data.summary.status !== 'not_validated') {
+                    const summary = data.summary;
+                    const statusType = summary.status === 'valid' ? 'success' : 
+                                     summary.status === 'warning' ? 'warning' : 'error';
+                    
+                    showValidationStatus(
+                        `Last validation: ${summary.message}`,
+                        statusType,
+                        formatValidationDetails(summary)
+                    );
+                }
+            } catch (error) {
+                console.log('Could not load initial system status:', error);
+            }
+        });
+    </script>
+</body>
+</html>

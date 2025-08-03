@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Configuration - StagDB</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .storage-wizard {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .wizard-header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .wizard-content {
+            padding: 40px;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+
+        .step-number {
+            background: #ddd;
+            color: #666;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .step.active .step-number {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: #2196F3;
+            color: white;
+        }
+
+        .recommendation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .recommendation-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .recommendation-card:hover {
+            border-color: #4CAF50;
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.2);
+        }
+
+        .recommendation-card.selected {
+            border-color: #4CAF50;
+            background: #f8fff8;
+        }
+
+        .recommendation-card.recommended {
+            border-color: #2196F3;
+            background: #f0f8ff;
+        }
+
+        .recommendation-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #2196F3;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .recommendation-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .recommendation-description {
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .pros-cons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .pros, .cons {
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .pros {
+            background: #e8f5e8;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .cons {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+        }
+
+        .pros h4, .cons h4 {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .pros ul, .cons ul {
+            list-style: none;
+            font-size: 0.85rem;
+        }
+
+        .pros li::before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .cons li::before {
+            content: "⚠ ";
+            color: #ff9800;
+            font-weight: bold;
+        }
+
+        .difficulty-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .difficulty-easy {
+            background: #e8f5e8;
+            color: #4CAF50;
+        }
+
+        .difficulty-medium {
+            background: #fff3e0;
+            color: #ff9800;
+        }
+
+        .difficulty-advanced {
+            background: #ffebee;
+            color: #f44336;
+        }
+
+        .config-form {
+            display: none;
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 30px;
+        }
+
+        .config-form.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+
+        .form-help {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .disk-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .disk-item {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .disk-item:hover {
+            border-color: #4CAF50;
+        }
+
+        .disk-item.selected {
+            border-color: #4CAF50;
+            background: #f8fff8;
+        }
+
+        .disk-item.unavailable {
+            border-color: #f44336;
+            background: #ffebee;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .disk-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .disk-size {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #eee;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn:disabled {
+            background: #ddd;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .validation-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .validation-result.success {
+            background: #e8f5e8;
+            border: 1px solid #4CAF50;
+            color: #2e7d32;
+        }
+
+        .validation-result.error {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            color: #c62828;
+        }
+
+        .system-info {
+            background: #f0f8ff;
+            border: 1px solid #2196F3;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .system-info h3 {
+            color: #1976d2;
+            margin-bottom: 15px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .info-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗄️ Storage Configuration</h1>
+            <p>Configure storage for your StagDB databases</p>
+        </div>
+
+        <div class="storage-wizard">
+            <div class="wizard-header">
+                <h2>Storage Setup Wizard</h2>
+                <p>Choose the best storage configuration for your needs</p>
+            </div>
+
+            <div class="wizard-content">
+                <!-- Step Indicator -->
+                <div class="step-indicator">
+                    <div class="step active">
+                        <div class="step-number">1</div>
+                        <span>System Info</span>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <span>Choose Type</span>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <span>Configure</span>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <span>Apply</span>
+                    </div>
+                </div>
+
+                <!-- System Information -->
+                <div id="system-info" class="system-info">
+                    <h3>📊 System Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-value" id="available-disks">-</div>
+                            <div class="info-label">Available Disks</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-value" id="available-space">-</div>
+                            <div class="info-label">Available Space</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-value" id="existing-pools">-</div>
+                            <div class="info-label">Existing ZFS Pools</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Storage Type Recommendations -->
+                <div id="recommendations" class="recommendation-grid">
+                    <!-- Recommendations will be populated by JavaScript -->
+                </div>
+
+                <!-- Configuration Forms -->
+                <div id="config-forms">
+                    <!-- Existing Pool Configuration -->
+                    <div id="existing-pool-form" class="config-form">
+                        <h3>🗃️ Existing ZFS Pool Configuration</h3>
+                        <div class="form-group">
+                            <label for="existing-pool-select">Select ZFS Pool:</label>
+                            <select id="existing-pool-select" name="existing_pool_name">
+                                <option value="">Choose a pool...</option>
+                            </select>
+                            <div class="form-help">Select from available healthy ZFS pools on your system</div>
+                        </div>
+                    </div>
+
+                    <!-- Dedicated Disk Configuration -->
+                    <div id="dedicated-disk-form" class="config-form">
+                        <h3>💾 Dedicated Disk Configuration</h3>
+                        <div class="form-group">
+                            <label>Select Disk(s):</label>
+                            <div id="disk-list" class="disk-list">
+                                <!-- Disks will be populated by JavaScript -->
+                            </div>
+                            <div class="form-help">Select one or more disks to create a dedicated ZFS pool</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="pool-type">Pool Type:</label>
+                            <select id="pool-type" name="pool_type">
+                                <option value="single">Single Disk</option>
+                                <option value="mirror">Mirror (RAID 1)</option>
+                                <option value="raidz1">RAID-Z1 (Single Parity)</option>
+                                <option value="raidz2">RAID-Z2 (Double Parity)</option>
+                            </select>
+                            <div class="form-help">Choose redundancy level (requires multiple disks for RAID)</div>
+                        </div>
+                    </div>
+
+                    <!-- Image File Configuration -->
+                    <div id="image-file-form" class="config-form">
+                        <h3>📁 Image File Configuration</h3>
+                        <div class="form-group">
+                            <label for="image-path">Image File Path:</label>
+                            <input type="text" id="image-path" name="image_file_path" value="/opt/stagdb/storage.img">
+                            <div class="form-help">Path where the ZFS image file will be created</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="image-size">Size (GB):</label>
+                            <input type="number" id="image-size" name="image_file_size_gb" min="10" max="1000" value="50">
+                            <div class="form-help">Size of the image file in gigabytes</div>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="sparse-file" name="sparse_file" checked>
+                                Use sparse file (recommended)
+                            </label>
+                            <div class="form-help">Sparse files only use space as needed, growing dynamically</div>
+                        </div>
+                    </div>
+
+                    <!-- Directory Configuration -->
+                    <div id="directory-form" class="config-form">
+                        <h3>📂 Directory Storage Configuration</h3>
+                        <div class="form-group">
+                            <label for="storage-directory">Storage Directory:</label>
+                            <input type="text" id="storage-directory" name="storage_directory" value="/opt/stagdb/data">
+                            <div class="form-help">Directory for database storage (development only - no ZFS features)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Common Configuration Options -->
+                <div id="common-config" class="config-form">
+                    <h3>⚙️ Advanced Options</h3>
+                    <div class="form-group">
+                        <label for="config-name">Configuration Name:</label>
+                        <input type="text" id="config-name" name="name" placeholder="My Storage Config">
+                        <div class="form-help">A descriptive name for this storage configuration</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="compression">Compression:</label>
+                        <select id="compression" name="compression">
+                            <option value="lz4">LZ4 (Recommended)</option>
+                            <option value="gzip">GZIP</option>
+                            <option value="zstd">ZSTD</option>
+                            <option value="off">Off</option>
+                        </select>
+                        <div class="form-help">Compression algorithm for space efficiency</div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="dedup" name="dedup">
+                            Enable Deduplication
+                        </label>
+                        <div class="form-help">Remove duplicate data blocks (requires more RAM)</div>
+                    </div>
+                </div>
+
+                <!-- Validation Result -->
+                <div id="validation-result" class="validation-result">
+                    <div id="validation-message"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="actions">
+                    <a href="/dashboard" class="btn btn-secondary">← Back to Dashboard</a>
+                    <div>
+                        <button id="validate-btn" class="btn btn-secondary" onclick="validateConfiguration()">Validate Configuration</button>
+                        <button id="apply-btn" class="btn btn-primary" onclick="applyConfiguration()" disabled>Apply Configuration</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedStorageType = null;
+        let systemInfo = {};
+        let selectedDisks = [];
+
+        // Load initial data
+        async function loadSystemInfo() {
+            try {
+                const response = await fetch('/api/storage/options/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    systemInfo = data.options;
+                    updateSystemInfoDisplay();
+                    populateRecommendations();
+                    populateExistingPools();
+                    populateAvailableDisks();
+                }
+            } catch (error) {
+                console.error('Failed to load system info:', error);
+            }
+        }
+
+        function updateSystemInfoDisplay() {
+            document.getElementById('available-disks').textContent = 
+                systemInfo.available_disks ? systemInfo.available_disks.filter(d => d.available).length : 0;
+            
+            document.getElementById('available-space').textContent = 
+                systemInfo.system_space ? systemInfo.system_space.available : 'Unknown';
+            
+            document.getElementById('existing-pools').textContent = 
+                systemInfo.existing_pools ? systemInfo.existing_pools.length : 0;
+        }
+
+        async function populateRecommendations() {
+            try {
+                const response = await fetch('/api/storage/recommendations/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const container = document.getElementById('recommendations');
+                    container.innerHTML = '';
+                    
+                    data.recommendations.forEach((rec, index) => {
+                        const card = createRecommendationCard(rec, index === 0);
+                        container.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load recommendations:', error);
+            }
+        }
+
+        function createRecommendationCard(recommendation, isRecommended) {
+            const card = document.createElement('div');
+            card.className = `recommendation-card ${isRecommended ? 'recommended' : ''}`;
+            card.onclick = () => selectStorageType(recommendation.type, recommendation.config);
+            
+            card.innerHTML = `
+                ${isRecommended ? '<div class="recommendation-badge">Recommended</div>' : ''}
+                <div class="recommendation-title">${recommendation.title}</div>
+                <div class="recommendation-description">${recommendation.description}</div>
+                <div class="pros-cons">
+                    <div class="pros">
+                        <h4>Pros</h4>
+                        <ul>
+                            ${recommendation.pros.map(pro => `<li>${pro}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="cons">
+                        <h4>Cons</h4>
+                        <ul>
+                            ${recommendation.cons.map(con => `<li>${con}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                <div class="difficulty-badge difficulty-${recommendation.difficulty.toLowerCase()}">
+                    ${recommendation.difficulty}
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function selectStorageType(type, config = {}) {
+            selectedStorageType = type;
+            
+            // Update UI
+            document.querySelectorAll('.recommendation-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+            
+            // Show appropriate form
+            document.querySelectorAll('.config-form').forEach(form => {
+                form.classList.remove('active');
+            });
+            
+            const formId = type.replace('_', '-') + '-form';
+            const form = document.getElementById(formId);
+            if (form) {
+                form.classList.add('active');
+            }
+            
+            document.getElementById('common-config').classList.add('active');
+            
+            // Pre-fill form with recommendation data
+            if (config) {
+                Object.keys(config).forEach(key => {
+                    const input = document.querySelector(`[name="${key}"]`);
+                    if (input) {
+                        if (input.type === 'checkbox') {
+                            input.checked = config[key];
+                        } else {
+                            input.value = config[key];
+                        }
+                    }
+                });
+            }
+            
+            // Update step indicator
+            updateStepIndicator(2);
+        }
+
+        function populateExistingPools() {
+            const select = document.getElementById('existing-pool-select');
+            select.innerHTML = '<option value="">Choose a pool...</option>';
+            
+            if (systemInfo.existing_pools) {
+                systemInfo.existing_pools.forEach(pool => {
+                    const option = document.createElement('option');
+                    option.value = pool.name;
+                    option.textContent = `${pool.name} (${pool.size} total, ${pool.free} free)`;
+                    select.appendChild(option);
+                });
+            }
+        }
+
+        function populateAvailableDisks() {
+            const container = document.getElementById('disk-list');
+            container.innerHTML = '';
+            
+            if (systemInfo.available_disks) {
+                systemInfo.available_disks.forEach(disk => {
+                    const diskItem = document.createElement('div');
+                    diskItem.className = `disk-item ${disk.available ? '' : 'unavailable'}`;
+                    diskItem.onclick = () => toggleDiskSelection(disk.path, diskItem);
+                    
+                    diskItem.innerHTML = `
+                        <div class="disk-name">${disk.name}</div>
+                        <div class="disk-size">${disk.size}</div>
+                        ${!disk.available ? `<div class="disk-reason">${disk.reason}</div>` : ''}
+                    `;
+                    
+                    container.appendChild(diskItem);
+                });
+            }
+        }
+
+        function toggleDiskSelection(diskPath, element) {
+            if (element.classList.contains('unavailable')) return;
+            
+            if (selectedDisks.includes(diskPath)) {
+                selectedDisks = selectedDisks.filter(d => d !== diskPath);
+                element.classList.remove('selected');
+            } else {
+                selectedDisks.push(diskPath);
+                element.classList.add('selected');
+            }
+        }
+
+        async function validateConfiguration() {
+            const configData = getConfigurationData();
+            
+            try {
+                const response = await fetch('/api/storage/validate/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(configData)
+                });
+                
+                const data = await response.json();
+                showValidationResult(data);
+                
+                if (data.success && data.validation_result.valid) {
+                    document.getElementById('apply-btn').disabled = false;
+                    updateStepIndicator(3);
+                }
+            } catch (error) {
+                showValidationResult({
+                    success: false,
+                    validation_result: { message: 'Validation failed: ' + error.message }
+                });
+            }
+        }
+
+        async function applyConfiguration() {
+            const configData = getConfigurationData();
+            
+            try {
+                const response = await fetch('/api/storage/configurations/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(configData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStepIndicator(4);
+                    alert('Storage configuration applied successfully!');
+                    window.location.href = '/dashboard';
+                } else {
+                    alert('Failed to apply configuration: ' + data.message);
+                }
+            } catch (error) {
+                alert('Configuration failed: ' + error.message);
+            }
+        }
+
+        function getConfigurationData() {
+            const configName = document.getElementById('config-name').value.trim();
+            const data = {
+                storage_type: selectedStorageType,
+                name: configName || `${selectedStorageType}_config_${Date.now()}`,
+                compression: document.getElementById('compression').value,
+                dedup: document.getElementById('dedup').checked
+            };
+            
+            // Add type-specific data
+            if (selectedStorageType === 'existing_pool') {
+                data.existing_pool_name = document.getElementById('existing-pool-select').value;
+            } else if (selectedStorageType === 'dedicated_disk' || selectedStorageType === 'multi_disk') {
+                data.dedicated_disks = selectedDisks;
+                data.pool_type = document.getElementById('pool-type').value;
+            } else if (selectedStorageType === 'image_file') {
+                data.image_file_path = document.getElementById('image-path').value;
+                data.image_file_size_gb = parseInt(document.getElementById('image-size').value);
+                data.sparse_file = document.getElementById('sparse-file').checked;
+            } else if (selectedStorageType === 'directory') {
+                data.storage_directory = document.getElementById('storage-directory').value;
+            }
+            
+            return data;
+        }
+
+        function showValidationResult(data) {
+            const resultDiv = document.getElementById('validation-result');
+            const messageDiv = document.getElementById('validation-message');
+            
+            resultDiv.style.display = 'block';
+            
+            if (data.success && data.validation_result.valid) {
+                resultDiv.className = 'validation-result success';
+                messageDiv.textContent = '✓ ' + data.validation_result.message;
+            } else {
+                resultDiv.className = 'validation-result error';
+                messageDiv.textContent = '✗ ' + (data.validation_result.message || data.message);
+            }
+        }
+
+        function updateStepIndicator(currentStep) {
+            document.querySelectorAll('.step').forEach((step, index) => {
+                step.classList.remove('active', 'completed');
+                if (index + 1 < currentStep) {
+                    step.classList.add('completed');
+                } else if (index + 1 === currentStep) {
+                    step.classList.add('active');
+                }
+            });
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadSystemInfo);
+    </script>
+</body>
+</html>

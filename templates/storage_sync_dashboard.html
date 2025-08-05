@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Synchronization Dashboard - StagDB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+        }
+        .sync-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #ccc;
+        }
+        .status-card.healthy {
+            border-left-color: #28a745;
+        }
+        .status-card.warning {
+            border-left-color: #ffc107;
+        }
+        .status-card.error {
+            border-left-color: #dc3545;
+        }
+        .status-card h3 {
+            color: #333;
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+        }
+        .status-card p {
+            color: #666;
+            margin: 0;
+        }
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .action-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .action-btn:hover {
+            background-color: #0056b3;
+        }
+        .action-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .action-btn.warning {
+            background-color: #ffc107;
+            color: #000;
+        }
+        .action-btn.warning:hover {
+            background-color: #e0a800;
+        }
+        .action-btn.danger {
+            background-color: #dc3545;
+        }
+        .action-btn.danger:hover {
+            background-color: #c82333;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+        .results.show {
+            display: block;
+        }
+        .results pre {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .back-btn {
+            background-color: #6c757d;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: inline-block;
+        }
+        .back-btn:hover {
+            background-color: #5a6268;
+        }
+        .timestamp {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Storage Synchronization Dashboard</h1>
+            <a href="/dashboard/" class="back-btn">← Back to Dashboard</a>
+        </div>
+
+        <div class="sync-status" id="syncStatus">
+            <!-- Status cards will be populated by JavaScript -->
+        </div>
+
+        <div class="actions">
+            <button class="action-btn" onclick="performAction('health-check')">
+                🏥 Health Check
+            </button>
+            <button class="action-btn" onclick="performAction('reconcile')">
+                🔄 Reconcile Reality
+            </button>
+            <button class="action-btn" onclick="performAction('drift-detection')">
+                🎯 Detect Drift
+            </button>
+            <button class="action-btn warning" onclick="performAction('auto-remediate')">
+                🔧 Auto Remediate
+            </button>
+            <button class="action-btn" onclick="performAction('full-sync')">
+                ⚡ Full Sync
+            </button>
+            <button class="action-btn" onclick="loadOrphanedPools()">
+                🏝️ Orphaned Pools
+            </button>
+        </div>
+
+        <div id="results" class="results">
+            <h3 id="resultsTitle">Results</h3>
+            <pre id="resultsContent"></pre>
+            <div id="resultsTimestamp" class="timestamp"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load initial status on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSyncStatus();
+            // Auto-refresh every 30 seconds
+            setInterval(loadSyncStatus, 30000);
+        });
+
+        async function loadSyncStatus() {
+            try {
+                const response = await fetch('/api/storage/sync/status/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySyncStatus(data.status);
+                } else {
+                    console.error('Failed to load sync status:', data.message);
+                }
+            } catch (error) {
+                console.error('Failed to load sync status:', error);
+            }
+        }
+
+        function displaySyncStatus(status) {
+            const container = document.getElementById('syncStatus');
+            
+            const totalConfigs = status.total_configurations || 0;
+            const configuredConfigs = status.configured_configurations || 0;
+            const configRate = status.configuration_rate || 0;
+            
+            container.innerHTML = `
+                <div class="status-card ${totalConfigs > 0 ? 'healthy' : 'warning'}">
+                    <h3>${totalConfigs}</h3>
+                    <p>Total Storage Configurations</p>
+                </div>
+                <div class="status-card ${configuredConfigs > 0 ? 'healthy' : 'error'}">
+                    <h3>${configuredConfigs}</h3>
+                    <p>Configured & Active</p>
+                </div>
+                <div class="status-card ${configRate > 80 ? 'healthy' : configRate > 50 ? 'warning' : 'error'}">
+                    <h3>${configRate.toFixed(1)}%</h3>
+                    <p>Configuration Rate</p>
+                </div>
+                <div class="status-card">
+                    <h3>${Object.keys(status.health_distribution || {}).length}</h3>
+                    <p>Health Status Types</p>
+                </div>
+            `;
+        }
+
+        async function performAction(action) {
+            const actionMap = {
+                'health-check': '/api/storage/sync/health-check/',
+                'reconcile': '/api/storage/sync/reconcile/',
+                'drift-detection': '/api/storage/sync/drift-detection/',
+                'auto-remediate': '/api/storage/sync/auto-remediate/',
+                'full-sync': '/api/storage/sync/full-sync/'
+            };
+
+            const url = actionMap[action];
+            if (!url) {
+                alert('Unknown action');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('results');
+            const titleEl = document.getElementById('resultsTitle');
+            const contentEl = document.getElementById('resultsContent');
+            const timestampEl = document.getElementById('resultsTimestamp');
+
+            // Show loading state
+            titleEl.innerHTML = `<span class="spinner"></span>Running ${action.replace('-', ' ')}...`;
+            contentEl.textContent = 'Please wait...';
+            timestampEl.textContent = '';
+            resultsDiv.classList.add('show');
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+
+                const data = await response.json();
+                
+                titleEl.textContent = `${action.replace('-', ' ').toUpperCase()} Results`;
+                
+                if (data.success) {
+                    contentEl.textContent = JSON.stringify(data.results, null, 2);
+                    timestampEl.textContent = `Completed at: ${new Date().toLocaleString()}`;
+                    
+                    // Refresh status after successful operation
+                    setTimeout(loadSyncStatus, 1000);
+                } else {
+                    contentEl.textContent = `Error: ${data.message}\n\n${data.error || ''}`;
+                    timestampEl.textContent = `Failed at: ${new Date().toLocaleString()}`;
+                }
+
+            } catch (error) {
+                titleEl.textContent = `${action.replace('-', ' ').toUpperCase()} Error`;
+                contentEl.textContent = `Network error: ${error.message}`;
+                timestampEl.textContent = `Failed at: ${new Date().toLocaleString()}`;
+            }
+        }
+
+        async function loadOrphanedPools() {
+            const resultsDiv = document.getElementById('results');
+            const titleEl = document.getElementById('resultsTitle');
+            const contentEl = document.getElementById('resultsContent');
+            const timestampEl = document.getElementById('resultsTimestamp');
+
+            titleEl.innerHTML = `<span class="spinner"></span>Loading orphaned pools...`;
+            contentEl.textContent = 'Please wait...';
+            timestampEl.textContent = '';
+            resultsDiv.classList.add('show');
+
+            try {
+                const response = await fetch('/api/storage/sync/orphaned-pools/');
+                const data = await response.json();
+                
+                titleEl.textContent = 'Orphaned Pools';
+                
+                if (data.success) {
+                    if (data.orphaned_pools.length === 0) {
+                        contentEl.textContent = 'No orphaned pools found. All ZFS pools are properly configured.';
+                    } else {
+                        let content = `Found ${data.total_orphaned} orphaned pool(s):\n\n`;
+                        data.orphaned_pools.forEach(pool => {
+                            content += `Pool: ${pool.name}\n`;
+                            content += `  Size: ${pool.size}\n`;
+                            content += `  Free: ${pool.free}\n`;
+                            content += `  Health: ${pool.health}\n`;
+                            content += `  Suggestions:\n`;
+                            pool.suggested_actions.forEach(action => {
+                                content += `    - ${action}\n`;
+                            });
+                            content += '\n';
+                        });
+                        contentEl.textContent = content;
+                    }
+                    timestampEl.textContent = `Loaded at: ${new Date().toLocaleString()}`;
+                } else {
+                    contentEl.textContent = `Error: ${data.message}`;
+                    timestampEl.textContent = `Failed at: ${new Date().toLocaleString()}`;
+                }
+
+            } catch (error) {
+                titleEl.textContent = 'Orphaned Pools Error';
+                contentEl.textContent = `Network error: ${error.message}`;
+                timestampEl.textContent = `Failed at: ${new Date().toLocaleString()}`;
+            }
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

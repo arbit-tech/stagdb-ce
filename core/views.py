@@ -63,11 +63,17 @@ def dashboard(request):
     hosts = HostVM.objects.filter(is_active=True)
     databases = Database.objects.filter(is_active=True)
     
+    # Check for Docker host specifically
+    docker_host = HostVM.objects.filter(is_docker_host=True, is_active=True).first()
+    can_create_databases = docker_host and docker_host.can_create_databases() if docker_host else False
+    
     context = {
         'hosts': hosts,
         'hosts_count': hosts.count(),
         'databases_count': databases.count(),
         'active_hosts_count': hosts.filter(is_active=True).count(),
+        'docker_host': docker_host,
+        'can_create_databases': can_create_databases,
     }
     return render(request, 'dashboard.html', context)
 
@@ -98,6 +104,12 @@ def add_host(request):
 def storage_config(request):
     """Storage configuration page"""
     return render(request, 'storage_config.html')
+
+
+@login_required
+def storage_sync_dashboard(request):
+    """Storage synchronization dashboard"""
+    return render(request, 'storage_sync_dashboard.html')
 
 
 @api_view(['GET'])

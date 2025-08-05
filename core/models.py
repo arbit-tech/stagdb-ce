@@ -39,17 +39,50 @@ class HostVM(models.Model):
     @classmethod
     def get_or_create_docker_host(cls):
         """Get or create Docker host entry"""
-        docker_host, created = cls.objects.get_or_create(
+        # Look for existing Docker host first (active or inactive)
+        docker_host = cls.objects.filter(is_docker_host=True).first()
+        if docker_host:
+            # Ensure it's properly configured and active
+            needs_update = False
+            if not docker_host.is_active:
+                docker_host.is_active = True
+                needs_update = True
+            if docker_host.ip_address != '172.17.0.1':
+                docker_host.ip_address = '172.17.0.1'
+                needs_update = True
+            if docker_host.username != 'docker-host':
+                docker_host.username = 'docker-host'
+                needs_update = True
+            
+            if needs_update:
+                docker_host.save()
+            
+            return docker_host, False
+        
+        # Look for existing host by name that could be converted to Docker host
+        try:
+            docker_host = cls.objects.get(name='docker-host')
+            # Convert existing host to Docker host
+            docker_host.is_docker_host = True
+            docker_host.is_active = True
+            docker_host.ip_address = '172.17.0.1'
+            docker_host.username = 'docker-host'
+            docker_host.save()
+            return docker_host, False
+        except cls.DoesNotExist:
+            pass
+        
+        # Create new Docker host
+        docker_host = cls.objects.create(
             name='docker-host',
-            defaults={
-                'ip_address': '172.17.0.1',  # Docker host IP
-                'username': 'docker-host',
-                'is_active': True,
-                'is_docker_host': True,
-                'zfs_pool': ''
-            }
+            ip_address='172.17.0.1',
+            username='docker-host',
+            is_active=True,
+            is_docker_host=True,
+            zfs_pool=''
         )
-        return docker_host, created
+        
+        return docker_host, True
     
     def validate_host_system(self):
         """Run validation on this host system"""
@@ -85,10 +118,24 @@ class HostVM(models.Model):
         pools_info = validation_results.get('zfs_pools', {}).get('info', {})
         if 'pools' in pools_info:
             self.zfs_pools = pools_info['pools']
-            # Set default pool if available and not already set
-            healthy_pools = [p for p in pools_info['pools'] if p.get('health') == 'ONLINE']
-            if healthy_pools and not self.zfs_pool:
-                self.zfs_pool = healthy_pools[0]['name']
+            
+            # Set pool based on storage configuration if available
+            if self.storage_config and self.storage_config.is_configured:
+                expected_pool_name = self.storage_config.get_pool_name()
+                # Verify the expected pool exists and is healthy
+                available_pools = {p['name']: p for p in pools_info['pools']}
+                if expected_pool_name in available_pools and available_pools[expected_pool_name].get('health') == 'ONLINE':
+                    self.zfs_pool = expected_pool_name
+                else:
+                    # Log a warning but don't override - might be a temporary state
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Expected pool '{expected_pool_name}' not found or unhealthy. Available pools: {list(available_pools.keys())}")
+            else:
+                # Fall back to auto-selecting the first healthy pool if no storage config
+                healthy_pools = [p for p in pools_info['pools'] if p.get('health') == 'ONLINE']
+                if healthy_pools and not self.zfs_pool:
+                    self.zfs_pool = healthy_pools[0]['name']
         
         self.save()
         return validation_results
@@ -250,6 +297,33 @@ class StorageConfiguration(models.Model):
     is_configured = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     configuration_error = models.TextField(blank=True)
+    
+    # Storage Monitoring Fields
+    health_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('healthy', 'Healthy'),
+            ('degraded', 'Degraded'),
+            ('failed', 'Failed'),
+            ('missing', 'Missing'),
+            ('unknown', 'Unknown')
+        ],
+        default='unknown'
+    )
+    health_details = models.JSONField(default=dict, blank=True)
+    last_health_check = models.DateTimeField(null=True, blank=True)
+    last_reconciliation = models.DateTimeField(null=True, blank=True)
+    actual_pool_info = models.JSONField(default=dict, blank=True)
+    sync_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('synced', 'Synced'),
+            ('drift_detected', 'Drift Detected'),
+            ('out_of_sync', 'Out of Sync'),
+            ('unknown', 'Unknown')
+        ],
+        default='unknown'
+    )
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)

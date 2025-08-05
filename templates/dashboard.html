@@ -335,6 +335,9 @@
             <h1>StagDB Dashboard</h1>
             <div class="user-info">
                 <span>Welcome, {{ user.username }}</span>
+                {% if user.is_staff %}
+                    <a href="/admin/" class="logout-btn" style="background-color: #28a745; margin-right: 10px;">Admin</a>
+                {% endif %}
                 <a href="/logout/" class="logout-btn">Logout</a>
             </div>
         </div>
@@ -415,16 +418,24 @@
             {% else %}
                 <div class="empty-state">
                     <h3>No Hosts Connected</h3>
-                    <p>Configure storage and connect your first host to start creating databases with instant branching capabilities.</p>
+                    <p>Set up your Docker host to start creating databases with instant branching capabilities.</p>
+                    <a href="/hosts/docker-setup/" class="add-host-btn" style="background-color: #2196F3; margin-right: 15px;">🐳 Setup Docker Host</a>
                     <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">🗄️ Configure Storage</a>
-                    <a href="/hosts/add/" class="add-host-btn">Connect First Host</a>
+                    <a href="/hosts/add/" class="add-host-btn">Add Remote Host</a>
                 </div>
             {% endif %}
             
             {% if hosts %}
                 <div style="text-align: center;">
-                    <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">🗄️ Configure Storage</a>
-                    <a href="/hosts/add/" class="add-host-btn">Add New Host</a>
+                    {% if can_create_databases %}
+                        <!-- Docker host is ready for database creation -->
+                        <a href="/databases/create/" class="add-host-btn" style="background-color: #4CAF50; margin-right: 15px;">🗄️ Create Database</a>
+                        <a href="/databases/" class="add-host-btn" style="background-color: #FF9800; margin-right: 15px;">📊 Manage Databases</a>
+                    {% endif %}
+                    <a href="/hosts/docker-setup/" class="add-host-btn" style="background-color: #2196F3; margin-right: 15px;">🐳 Setup Docker Host</a>
+                    <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">⚙️ Configure Storage</a>
+                    <a href="/storage/sync/" class="add-host-btn" style="background-color: #FF6B35; margin-right: 15px;">🔄 Storage Sync</a>
+                    <a href="/hosts/add/" class="add-host-btn">➕ Add Remote Host</a>
                 </div>
             {% endif %}
         </div>

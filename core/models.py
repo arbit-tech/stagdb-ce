@@ -214,6 +214,7 @@ class HostVM(models.Model):
 
 
 class Database(models.Model):
+    # Core database info
     name = models.CharField(max_length=100)
     host_vm = models.ForeignKey(HostVM, on_delete=models.CASCADE)
     db_type = models.CharField(max_length=50, default='postgresql')
@@ -224,11 +225,68 @@ class Database(models.Model):
     username = models.CharField(max_length=50, default='postgres')
     password = models.CharField(max_length=255)
     is_active = models.BooleanField(default=True)
+    
+    # Container management fields
+    container_id = models.CharField(max_length=64, blank=True)  # Docker container ID
+    container_status = models.CharField(max_length=20, choices=[
+        ('creating', 'Creating'),
+        ('running', 'Running'),
+        ('stopped', 'Stopped'),
+        ('error', 'Error'),
+        ('removing', 'Removing')
+    ], default='creating')
+    
+    # Health monitoring
+    last_health_check = models.DateTimeField(null=True, blank=True)
+    health_status = models.CharField(max_length=20, choices=[
+        ('healthy', 'Healthy'),
+        ('unhealthy', 'Unhealthy'),
+        ('starting', 'Starting'),
+        ('unknown', 'Unknown')
+    ], default='unknown')
+    
+    # Storage info
+    storage_used_mb = models.IntegerField(default=0)
+    storage_quota_gb = models.IntegerField(null=True, blank=True)
+    
+    # Connection info
+    database_name = models.CharField(max_length=100, default='')  # Actual DB name inside PostgreSQL
+    connection_string = models.TextField(blank=True)  # Cached connection string
+    
+    # Metadata
+    description = models.TextField(blank=True)
+    tags = models.JSONField(default=list, blank=True)
+    
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return f"{self.name} on {self.host_vm.name}"
+    
+    def get_connection_string(self, include_password=True):
+        """Generate PostgreSQL connection string"""
+        base = f"postgresql://{self.username}"
+        if include_password:
+            base += f":{self.password}"
+        base += f"@{self.host_vm.ip_address}:{self.port}/{self.database_name}"
+        return base
+    
+    def get_connection_info(self):
+        """Get structured connection information"""
+        return {
+            'host': self.host_vm.ip_address,
+            'port': self.port,
+            'database': self.database_name,
+            'username': self.username,
+            'password': self.password,
+            'connection_string': self.get_connection_string(),
+            'connection_string_safe': self.get_connection_string(include_password=False)
+        }
+    
+    def is_container_running(self):
+        """Check if container is currently running"""
+        return self.container_status == 'running' and self.health_status in ['healthy', 'starting']
 
 
 class DatabaseBranch(models.Model):

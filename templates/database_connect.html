@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to {{ database.name }} - StagDB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+        }
+        .breadcrumb {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .breadcrumb a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .database-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #007bff;
+        }
+        .database-info h3 {
+            color: #333;
+            margin: 0 0 15px 0;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .info-item label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .info-item span {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            background-color: #f1f1f1;
+            padding: 5px 8px;
+            border-radius: 4px;
+        }
+        .connection-section {
+            margin-bottom: 30px;
+        }
+        .connection-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .connection-string {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .connection-string label {
+            font-weight: bold;
+            color: #555;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .connection-string-content {
+            font-family: 'Courier New', monospace;
+            background-color: #fff;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 10px;
+            word-break: break-all;
+            position: relative;
+        }
+        .copy-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .connection-string .copy-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+        .copy-btn:hover {
+            background-color: #0056b3;
+        }
+        .copy-btn.copied {
+            background-color: #28a745;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-badge.running {
+            background-color: #28a745;
+            color: white;
+        }
+        .status-badge.stopped {
+            background-color: #dc3545;
+            color: white;
+        }
+        .status-badge.starting {
+            background-color: #ffc107;
+            color: black;
+        }
+        .instructions {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .instructions h4 {
+            color: #0056b3;
+            margin: 0 0 15px 0;
+        }
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .instructions code {
+            background-color: #f1f1f1;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        .warning strong {
+            color: #664d03;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/dashboard/">Dashboard</a> &gt; 
+            <a href="/hosts/{{ host.id }}/">{{ host.name }}</a> &gt; 
+            {{ database.name }} Connection
+        </div>
+        
+        <div class="header">
+            <h1>Connect to {{ database.name }}</h1>
+            <div>
+                <a href="/hosts/{{ host.id }}/" class="btn btn-secondary">Back to Host</a>
+            </div>
+        </div>
+
+        <div class="database-info">
+            <h3>Database Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Database Name:</label>
+                    <span>{{ database.name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Type & Version:</label>
+                    <span>{{ database.db_type|capfirst }} {{ database.db_version }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Host:</label>
+                    <span>{{ host.name }} ({{ host.ip_address }})</span>
+                </div>
+                <div class="info-item">
+                    <label>Port:</label>
+                    <span>{{ database.port }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Container:</label>
+                    <span>{{ database.container_name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Status:</label>
+                    <span class="status-badge {% if database.is_container_running %}running{% else %}stopped{% endif %}">
+                        {% if database.is_container_running %}Running{% else %}Stopped{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {% if not database.is_container_running %}
+        <div class="warning">
+            <strong>Warning:</strong> This database container is currently stopped. You need to start it before you can connect.
+        </div>
+        {% endif %}
+
+        <div class="connection-section">
+            <h3>Connection Details</h3>
+            
+            <div class="connection-string">
+                <label>Connection String (with password):</label>
+                <div class="connection-string-content" id="connectionStringFull">
+                    {{ connection_info.connection_string }}
+                    <button class="copy-btn" onclick="copyToClipboard('connectionStringFull', this)">Copy</button>
+                </div>
+            </div>
+
+            <div class="connection-string">
+                <label>Connection String (without password):</label>
+                <div class="connection-string-content" id="connectionStringSafe">
+                    {{ connection_info.connection_string_safe }}
+                    <button class="copy-btn" onclick="copyToClipboard('connectionStringSafe', this)">Copy</button>
+                </div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Host:</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span>{{ connection_info.host }}</span>
+                        <button class="copy-btn" onclick="copyText('{{ connection_info.host }}', this)">Copy</button>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Port:</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span>{{ connection_info.port }}</span>
+                        <button class="copy-btn" onclick="copyText('{{ connection_info.port }}', this)">Copy</button>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Database:</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span>{{ connection_info.database }}</span>
+                        <button class="copy-btn" onclick="copyText('{{ connection_info.database }}', this)">Copy</button>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Username:</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span>{{ connection_info.username }}</span>
+                        <button class="copy-btn" onclick="copyText('{{ connection_info.username }}', this)">Copy</button>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Password:</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span>{{ connection_info.password }}</span>
+                        <button class="copy-btn" onclick="copyText('{{ connection_info.password }}', this)">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h4>How to Connect</h4>
+            <p>You can use these connection details with any PostgreSQL client:</p>
+            
+            <ul>
+                <li><strong>psql (command line):</strong>
+                    <br><code>psql "{{ connection_info.connection_string }}"</code>
+                </li>
+                <li><strong>pgAdmin:</strong> Use the individual connection parameters above to create a new server connection</li>
+                <li><strong>DBeaver:</strong> Create a new PostgreSQL connection using the host, port, database, username, and password</li>
+                <li><strong>Application code:</strong> Use the connection string in your database configuration</li>
+            </ul>
+
+            <p><strong>Note:</strong> Make sure the database container is running before attempting to connect.</p>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId, button) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error('Element not found:', elementId);
+                return;
+            }
+            
+            // Get text content but exclude the copy button text
+            const copyButton = element.querySelector('.copy-btn');
+            let text = element.textContent.trim();
+            if (copyButton) {
+                text = text.replace(copyButton.textContent.trim(), '').trim();
+            }
+            
+            copyText(text, button);
+        }
+        
+        function copyText(text, button) {
+            console.log('Attempting to copy:', text);
+            
+            // Check if the Clipboard API is available
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showCopySuccess(button);
+                }, function(err) {
+                    console.error('Clipboard API failed:', err);
+                    fallbackCopy(text, button);
+                });
+            } else {
+                // Fallback for older browsers or non-secure contexts
+                fallbackCopy(text, button);
+            }
+        }
+        
+        function fallbackCopy(text, button) {
+            try {
+                // Create a temporary textarea element
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = text;
+                tempTextarea.style.position = 'absolute';
+                tempTextarea.style.left = '-9999px';
+                tempTextarea.style.top = '-9999px';
+                document.body.appendChild(tempTextarea);
+                
+                tempTextarea.focus();
+                tempTextarea.select();
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(tempTextarea);
+                
+                if (successful) {
+                    showCopySuccess(button);
+                } else {
+                    showCopyError(button);
+                }
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                showCopyError(button);
+            }
+        }
+        
+        function showCopySuccess(button) {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            button.classList.add('copied');
+            button.disabled = true;
+            
+            setTimeout(function() {
+                button.textContent = originalText;
+                button.classList.remove('copied');
+                button.disabled = false;
+            }, 2000);
+        }
+        
+        function showCopyError(button) {
+            const originalText = button.textContent;
+            button.textContent = 'Failed';
+            button.style.backgroundColor = '#dc3545';
+            
+            setTimeout(function() {
+                button.textContent = originalText;
+                button.style.backgroundColor = '#007bff';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

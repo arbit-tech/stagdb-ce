@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Database - {{ host.name }} - StagDB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+        }
+        .breadcrumb {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .breadcrumb a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        .form-group .help-text {
+            margin-top: 5px;
+            color: #666;
+            font-size: 12px;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .alert {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .host-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .host-info h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .status-indicator {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .status-valid { background-color: #d4edda; color: #155724; }
+        .status-warning { background-color: #fff3cd; color: #856404; }
+        .status-invalid { background-color: #f8d7da; color: #721c24; }
+        .loading {
+            display: none;
+            color: #666;
+        }
+        .image-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            margin-top: 5px;
+        }
+        .image-cached { background-color: #d4edda; color: #155724; }
+        .image-needs-pull { background-color: #fff3cd; color: #856404; }
+        .image-pulling { background-color: #d1ecf1; color: #0c5460; }
+        .progress-message {
+            font-size: 14px;
+            color: #666;
+            margin-left: 10px;
+        }
+        .form-actions {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="breadcrumb">
+                <a href="/dashboard/">Dashboard</a> › <a href="/hosts/{{ host.id }}/">{{ host.name }}</a> › Add Database
+            </div>
+            <h1>Create New Database</h1>
+        </div>
+
+        <div class="host-info">
+            <h3>Target Host: {{ host.name }}</h3>
+            <p><strong>IP Address:</strong> {{ host.ip_address }}</p>
+            <p><strong>Status:</strong> 
+                <span class="status-indicator status-{{ host.validation_status }}">{{ host.validation_status|upper }}</span>
+            </p>
+        </div>
+
+        {% if not can_create_databases %}
+            <div class="alert alert-danger">
+                <h4>Host Not Ready</h4>
+                <p>This host cannot create databases yet. Please run host validation first.</p>
+                {% if validation_summary %}
+                    <p><strong>Status:</strong> {{ validation_summary.message }}</p>
+                {% endif %}
+                <a href="/hosts/{{ host.id }}/" class="btn">Return to Host Details</a>
+            </div>
+        {% else %}
+            <form id="createDatabaseForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="database_name">Database Name *</label>
+                    <input type="text" id="database_name" name="name" required 
+                           pattern="[a-zA-Z0-9_]{3,63}" 
+                           title="3-63 characters, letters, numbers, underscore only"
+                           placeholder="e.g., myapp_dev">
+                    <div class="help-text">3-63 characters, letters, numbers, and underscore only</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="postgres_version">PostgreSQL Version</label>
+                    <select id="postgres_version" name="db_version">
+                        <option value="">Loading versions...</option>
+                    </select>
+                    <div class="help-text">Select the PostgreSQL version for your database</div>
+                    <div id="image-status" class="help-text" style="display: none; margin-top: 5px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description (Optional)</label>
+                    <textarea id="description" name="description" 
+                              placeholder="Brief description of this database's purpose"></textarea>
+                    <div class="help-text">Optional description to help identify this database</div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn" id="createBtn">Create Database</button>
+                    <a href="/hosts/{{ host.id }}/" class="btn btn-secondary">Cancel</a>
+                    <span class="loading" id="loading">Creating database...</span>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+
+    <script>
+        // Get CSRF token
+        function getCSRFToken() {
+            const token = document.querySelector('[name=csrfmiddlewaretoken]');
+            return token ? token.value : '{{ csrf_token }}';
+        }
+
+        // Load PostgreSQL versions
+        fetch('/api/databases/postgres-versions/', {
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const versionSelect = document.getElementById('postgres_version');
+                    versionSelect.innerHTML = '';
+                    
+                    data.versions.forEach(version => {
+                        const option = document.createElement('option');
+                        option.value = version.version;
+                        option.textContent = `${version.display_name}${version.is_default ? ' (Recommended)' : ''}`;
+                        if (version.description) {
+                            option.title = version.description;
+                        }
+                        if (version.is_default) {
+                            option.selected = true;
+                        }
+                        versionSelect.appendChild(option);
+                    });
+                    
+                    // Check image availability for default version
+                    const defaultVersion = data.versions.find(v => v.is_default);
+                    if (defaultVersion) {
+                        checkImageAvailability(defaultVersion.image);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error loading PostgreSQL versions:', error);
+                const versionSelect = document.getElementById('postgres_version');
+                versionSelect.innerHTML = '<option value="15">PostgreSQL 15 (Default)</option>';
+            });
+
+        // Check image availability when version changes
+        document.getElementById('postgres_version').addEventListener('change', function() {
+            const selectedVersion = this.value;
+            if (selectedVersion) {
+                const image = `postgres:${selectedVersion}-alpine`;
+                checkImageAvailability(image);
+            }
+        });
+
+        // Function to check if Docker image is available
+        function checkImageAvailability(image) {
+            const imageStatus = document.getElementById('image-status');
+            imageStatus.style.display = 'none';
+            
+            fetch('/api/databases/check-image/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    image: image,
+                    host_id: {{ host.id }}
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const availability = result.availability;
+                    imageStatus.style.display = 'block';
+                    
+                    if (availability.available_locally) {
+                        imageStatus.className = 'image-status image-cached';
+                        imageStatus.textContent = '✓ Image available locally';
+                    } else if (availability.needs_pull) {
+                        imageStatus.className = 'image-status image-needs-pull';
+                        imageStatus.textContent = '⚠ Image will be downloaded (may take a few minutes)';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error checking image availability:', error);
+            });
+        }
+
+        // Handle form submission
+        document.getElementById('createDatabaseForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {
+                name: formData.get('name'),
+                host_id: {{ host.id }},
+                db_version: formData.get('db_version'),
+                description: formData.get('description')
+            };
+            
+            // Show loading state
+            document.getElementById('createBtn').disabled = true;
+            document.getElementById('loading').style.display = 'inline';
+            
+            // Show progress message for image pulling if needed
+            const imageStatus = document.getElementById('image-status');
+            const selectedVersion = document.getElementById('postgres_version').value;
+            const image = `postgres:${selectedVersion}-alpine`;
+            
+            if (imageStatus && imageStatus.textContent.includes('will be downloaded')) {
+                document.getElementById('loading').textContent = 'Downloading Docker image and creating database...';
+            }
+            
+            // Validate name first
+            fetch('/api/databases/validate-name/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    name: data.name,
+                    host_id: data.host_id
+                })
+            })
+            .then(response => response.json())
+            .then(validation => {
+                if (!validation.valid) {
+                    throw new Error(validation.message);
+                }
+                
+                // Name is valid, create database
+                return fetch('/api/databases/create/', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    body: JSON.stringify(data)
+                });
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Database created successfully!');
+                    window.location.href = '/hosts/{{ host.id }}/';
+                } else {
+                    throw new Error(result.message);
+                }
+            })
+            .catch(error => {
+                alert('Error creating database: ' + error.message);
+                document.getElementById('createBtn').disabled = false;
+                document.getElementById('loading').style.display = 'none';
+            });
+        });
+
+        // Real-time name validation
+        document.getElementById('database_name').addEventListener('blur', function() {
+            const name = this.value.trim();
+            if (!name) return;
+            
+            fetch('/api/databases/validate-name/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    name: name,
+                    host_id: {{ host.id }}
+                })
+            })
+            .then(response => response.json())
+            .then(validation => {
+                const helpText = this.parentNode.querySelector('.help-text');
+                if (validation.valid) {
+                    helpText.style.color = '#28a745';
+                    helpText.textContent = '✓ Database name is available';
+                } else {
+                    helpText.style.color = '#dc3545';
+                    helpText.textContent = '✗ ' + validation.message;
+                }
+            })
+            .catch(error => {
+                console.error('Name validation error:', error);
+            });
+        });
+    </script>
+</body>
+</html>

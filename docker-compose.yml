@@ -4,7 +4,7 @@ services:
     ports:
       - "80:8000"
     volumes:
-      - stagdb_data:/app/data
+      - .:/app                                     # Mount current directory for live code sync
       - /var/run/docker.sock:/var/run/docker.sock  # Docker socket access
       - /proc:/host/proc:ro                        # Host proc access
       - /sys:/host/sys:ro                          # Host sys access
@@ -15,6 +15,3 @@ services:
     environment:
       - DJANGO_SETTINGS_MODULE=stagdb.settings
     restart: unless-stopped
-
-volumes:
-  stagdb_data:

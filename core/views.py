@@ -96,8 +96,38 @@ def host_detail(request, host_id):
 
 
 @login_required
+def database_connect(request, database_id):
+    """Display database connection information"""
+    database = get_object_or_404(Database, id=database_id, is_active=True)
+    
+    # Get connection information
+    connection_info = database.get_connection_info()
+    
+    context = {
+        'database': database,
+        'connection_info': connection_info,
+        'host': database.host_vm,
+    }
+    return render(request, 'database_connect.html', context)
+
+
+@login_required
 def add_host(request):
     return render(request, 'onboarding.html')
+
+
+@login_required
+def add_database(request, host_id):
+    """Web interface for adding a database to a specific host"""
+    host = get_object_or_404(HostVM, id=host_id, is_active=True)
+    
+    context = {
+        'host': host,
+        'can_create_databases': host.can_create_databases(),
+        'validation_summary': host.get_validation_summary() if not host.can_create_databases() else None
+    }
+    
+    return render(request, 'add_database.html', context)
 
 
 @login_required
@@ -346,12 +376,10 @@ def create_database(request):
                 'validation_summary': host.get_validation_summary()
             }, status=400)
         
-        # TODO: Implement actual database creation logic
-        return Response({
-            'success': True,
-            'message': 'Database creation logic to be implemented',
-            'host_status': host.validation_status
-        })
+        # Redirect to the new database creation endpoint
+        # This maintains backward compatibility while using the new implementation
+        from .database_views import create_database as new_create_database
+        return new_create_database(request)
         
     except Exception as e:
         logger.error(f"Database creation failed: {str(e)}")

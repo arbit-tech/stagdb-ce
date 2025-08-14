@@ -3,6 +3,7 @@ from . import views
 from . import storage_views
 from . import docker_host_views
 from . import storage_sync_views
+from . import database_views
 
 urlpatterns = [
     # Main app URLs
@@ -11,6 +12,8 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('hosts/<int:host_id>/', views.host_detail, name='host_detail'),
+    path('hosts/<int:host_id>/databases/add/', views.add_database, name='add_database'),
+    path('databases/<int:database_id>/connect/', views.database_connect, name='database_connect'),
     path('hosts/add/', views.add_host, name='add_host'),
     path('hosts/docker-setup/', docker_host_views.docker_host_setup_wizard, name='docker_host_setup'),
     path('storage/', views.storage_config, name='storage_config'),
@@ -31,7 +34,29 @@ urlpatterns = [
     path('api/hosts/<int:host_id>/validate/', views.validate_host, name='validate_host'),
     path('api/hosts/<int:host_id>/remove/', views.remove_host, name='remove_host'),
     path('api/hosts/<int:host_id>/removal-check/', views.host_removal_check, name='host_removal_check'),
-    path('api/databases/create/', views.create_database, name='create_database'),
+    
+    # Database management URLs
+    path('api/databases/', database_views.list_databases, name='list_databases'),
+    path('api/databases/create/', database_views.create_database, name='create_database'),
+    path('api/databases/<int:database_id>/', database_views.database_detail, name='database_detail'),
+    path('api/databases/<int:database_id>/delete/', database_views.delete_database, name='delete_database'),
+    
+    # Database lifecycle management
+    path('api/databases/<int:database_id>/start/', database_views.start_database, name='start_database'),
+    path('api/databases/<int:database_id>/stop/', database_views.stop_database, name='stop_database'),
+    path('api/databases/<int:database_id>/restart/', database_views.restart_database, name='restart_database'),
+    
+    # Database monitoring
+    path('api/databases/<int:database_id>/status/', database_views.database_status, name='database_status'),
+    path('api/databases/<int:database_id>/logs/', database_views.database_logs, name='database_logs'),
+    path('api/databases/<int:database_id>/connection/', database_views.database_connection_info, name='database_connection_info'),
+    
+    # Database utilities
+    path('api/databases/postgres-versions/', database_views.available_postgres_versions, name='available_postgres_versions'),
+    path('api/databases/validate-name/', database_views.validate_database_name, name='validate_database_name'),
+    path('api/databases/check-image/', database_views.check_image_availability, name='check_image_availability'),
+    path('api/databases/pull-image/', database_views.pull_postgres_image, name='pull_postgres_image'),
+    path('api/databases/check-ports/', database_views.check_port_availability, name='check_port_availability'),
     
     # Storage configuration URLs
     path('api/storage/options/', storage_views.storage_options, name='storage_options'),

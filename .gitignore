@@ -221,6 +221,10 @@ data/
 cookies.txt
 plan/
 
+# AI assistant files
+GEMINI.md
+CLAUDE.md
+
 # Development and testing
 .coverage
 .pytest_cache/

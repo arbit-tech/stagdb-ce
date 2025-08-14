@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ database.name }} - StagDB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+        }
+        .breadcrumb {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .breadcrumb a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .database-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #007bff;
+        }
+        .database-info h3 {
+            color: #333;
+            margin: 0 0 15px 0;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .info-item label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .info-item span {
+            color: #333;
+            font-family: 'Courier New', monospace;
+            background-color: #f1f1f1;
+            padding: 5px 8px;
+            border-radius: 4px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .connection-section {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .connection-string {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .connection-string label {
+            font-weight: bold;
+            color: #555;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .connection-string-content {
+            font-family: 'Courier New', monospace;
+            background-color: #fff;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 10px;
+            word-break: break-all;
+            position: relative;
+        }
+        .copy-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .connection-string .copy-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+        }
+        .copy-btn:hover {
+            background-color: #0056b3;
+        }
+        .copy-btn.copied {
+            background-color: #28a745;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-badge.running {
+            background-color: #28a745;
+            color: white;
+        }
+        .status-badge.stopped {
+            background-color: #dc3545;
+            color: white;
+        }
+        .status-badge.starting {
+            background-color: #ffc107;
+            color: black;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .metric-card {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-card h4 {
+            color: #333;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .metric-card .value {
+            color: #007bff;
+            font-size: 20px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        .metric-card .label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .snapshot-hierarchy {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .snapshot-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .snapshot-item {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .snapshot-item.current {
+            border-left: 4px solid #007bff;
+            background-color: #e7f3ff;
+        }
+        .snapshot-item.parent {
+            border-left: 4px solid #28a745;
+            background-color: #f0f8f0;
+        }
+        .snapshot-info {
+            flex-grow: 1;
+        }
+        .snapshot-name {
+            font-weight: bold;
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+        .snapshot-details {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .snapshot-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .snapshot-type.current {
+            background-color: #007bff;
+            color: white;
+        }
+        .snapshot-type.parent {
+            background-color: #28a745;
+            color: white;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+        .warning strong {
+            color: #664d03;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .branches-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .branch-item {
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .branch-item.active {
+            border-left: 4px solid #28a745;
+        }
+        .branch-name {
+            font-weight: bold;
+            color: #333;
+        }
+        .branch-details {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/dashboard/">Dashboard</a> &gt; 
+            <a href="/hosts/{{ host.id }}/">{{ host.name }}</a> &gt; 
+            {{ database.name }}
+        </div>
+        
+        <div class="header">
+            <h1>{{ database.name }}</h1>
+            <div>
+                <a href="/databases/{{ database.id }}/connect/" class="btn">Connection Info</a>
+                <a href="/hosts/{{ host.id }}/" class="btn btn-secondary">Back to Host</a>
+            </div>
+        </div>
+
+        {% if not database.is_container_running %}
+        <div class="warning">
+            <strong>Warning:</strong> This database container is currently stopped. Some metrics and operations may not be available.
+        </div>
+        {% endif %}
+
+        <div class="database-info">
+            <h3>Database Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Name:</label>
+                    <span>{{ database.name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Type & Version:</label>
+                    <span>{{ database.db_type|capfirst }} {{ database.db_version }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Host:</label>
+                    <span>{{ host.name }} ({{ host.ip_address }})</span>
+                </div>
+                <div class="info-item">
+                    <label>Port:</label>
+                    <span>{{ database.port }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Container:</label>
+                    <span>{{ database.container_name }}</span>
+                </div>
+                <div class="info-item">
+                    <label>ZFS Dataset:</label>
+                    <span>{{ database.zfs_dataset }}</span>
+                </div>
+                <div class="info-item">
+                    <label>Status:</label>
+                    <span class="status-badge {% if database.is_container_running %}running{% else %}stopped{% endif %}">
+                        {% if database.is_container_running %}Running{% else %}Stopped{% endif %}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <label>Created:</label>
+                    <span>{{ database.created_at|date:"M d, Y H:i" }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="connection-section">
+            <h3>Quick Connection</h3>
+            <p>Use these details to connect to your database:</p>
+            <div class="connection-string">
+                <label>Connection String:</label>
+                <div class="connection-string-content" id="connectionString">
+                    {{ connection_info.connection_string_safe }}
+                    <button class="copy-btn" onclick="copyToClipboard('connectionString', this)">Copy</button>
+                </div>
+            </div>
+            <p style="margin: 10px 0 0 0; font-size: 14px; color: #666;">
+                <strong>Host:</strong> {{ connection_info.host }} | 
+                <strong>Port:</strong> {{ connection_info.port }} | 
+                <strong>Database:</strong> {{ connection_info.database }} | 
+                <strong>Username:</strong> {{ connection_info.username }}
+            </p>
+            <p style="margin: 10px 0 0 0;">
+                <a href="/databases/{{ database.id }}/connect/" class="btn">Full Connection Details</a>
+            </p>
+        </div>
+
+        <div class="section">
+            <h3>Storage Metrics</h3>
+            {% if storage_metrics.success %}
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h4>Dataset Size</h4>
+                        <div class="value">{{ storage_metrics.metrics.used_human|default:storage_metrics.metrics.used }}</div>
+                        <div class="label">Used Space</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Referenced Data</h4>
+                        <div class="value">{{ storage_metrics.metrics.referenced_human|default:storage_metrics.metrics.referenced }}</div>
+                        <div class="label">Actual Data Size</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Snapshot Data</h4>
+                        <div class="value">{{ storage_metrics.metrics.usedbysnapshots_human|default:storage_metrics.metrics.usedbysnapshots }}</div>
+                        <div class="label">Space Used by Snapshots</div>
+                    </div>
+                    <div class="metric-card">
+                        <h4>Compression Ratio</h4>
+                        <div class="value">{{ storage_metrics.metrics.compressratio|default:"1.00x" }}</div>
+                        <div class="label">ZFS Compression</div>
+                    </div>
+                    {% if storage_metrics.metrics.quota != "none" %}
+                    <div class="metric-card">
+                        <h4>Quota</h4>
+                        <div class="value">{{ storage_metrics.metrics.quota }}</div>
+                        <div class="label">Storage Limit</div>
+                    </div>
+                    {% endif %}
+                    <div class="metric-card">
+                        <h4>Available Space</h4>
+                        <div class="value">{{ storage_metrics.metrics.available_human|default:storage_metrics.metrics.available }}</div>
+                        <div class="label">Free Space on Pool</div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p><strong>Storage metrics unavailable:</strong> {{ storage_metrics.error|default:"Unknown error" }}</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <h3>ZFS Snapshot Hierarchy</h3>
+            <div class="snapshot-hierarchy">
+                {% if snapshot_hierarchy.success and snapshot_hierarchy.snapshots %}
+                    <p style="margin: 0 0 20px 0; color: #666;">
+                        Showing all snapshots from the storage root to current database state.
+                    </p>
+                    <div class="snapshot-list">
+                        {% for snapshot in snapshot_hierarchy.snapshots %}
+                            <div class="snapshot-item {% if snapshot.type == 'current_dataset' %}current{% else %}parent{% endif %}">
+                                <div class="snapshot-info">
+                                    <div class="snapshot-name">{{ snapshot.full_name }}</div>
+                                    <div class="snapshot-details">
+                                        <strong>Created:</strong> {{ snapshot.creation_time }} | 
+                                        <strong>Size:</strong> {{ snapshot.used_space_human }} |
+                                        <strong>Dataset:</strong> {{ snapshot.dataset }}
+                                    </div>
+                                </div>
+                                <div class="snapshot-type {% if snapshot.type == 'current_dataset' %}current{% else %}parent{% endif %}">
+                                    {% if snapshot.type == 'current_dataset' %}Database{% else %}Parent{% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <p><strong>No snapshots found</strong></p>
+                        <p>{% if snapshot_hierarchy.error %}Error: {{ snapshot_hierarchy.error }}{% else %}This database doesn't have any snapshots yet.{% endif %}</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Database Lineage & ZFS Operations</h3>
+            <div class="lineage-section">
+                <div class="creation-info" style="background-color: #e7f3ff; border: 1px solid #b3d7ff; border-radius: 6px; padding: 15px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 10px 0; color: #0056b3;">Database Creation</h4>
+                    {% if database.creation_info %}
+                        <p><strong>Type:</strong> {{ database.creation_info.type }}</p>
+                        {% if database.creation_info.source %}
+                            <p><strong>Source:</strong> {{ database.creation_info.source }}</p>
+                        {% endif %}
+                        <p><strong>Details:</strong> {{ database.creation_info.details }}</p>
+                    {% endif %}
+                </div>
+
+                {% if zfs_lineage %}
+                    <div class="operations-list">
+                        <h4 style="margin: 0 0 15px 0; color: #333;">ZFS Operations History</h4>
+                        {% for operation in zfs_lineage %}
+                            <div class="operation-item" style="background-color: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-weight: bold; color: #333;">{{ operation.operation }}</div>
+                                        <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                                            {% if operation.source %}
+                                                <strong>From:</strong> {{ operation.source }}
+                                            {% endif %}
+                                            {% if operation.target %}
+                                                {% if operation.source %} → {% endif %}
+                                                <strong>To:</strong> {{ operation.target }}
+                                            {% endif %}
+                                        </div>
+                                        <div style="color: #666; font-size: 12px; margin-top: 5px;">
+                                            {{ operation.timestamp|date:"M d, Y H:i" }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span class="status-badge {% if operation.success %}running{% else %}stopped{% endif %}" style="font-size: 10px;">
+                                            {% if operation.success %}Success{% else %}Failed{% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if child_databases %}
+                    <div style="margin-top: 30px;">
+                        <h4 style="margin: 0 0 15px 0; color: #333;">Databases Cloned from This One</h4>
+                        {% for child_db in child_databases %}
+                            <div style="background-color: #f0f8f0; border: 1px solid #c3e6cb; border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+                                <div style="font-weight: bold;">{{ child_db.name }}</div>
+                                <div style="color: #666; font-size: 14px;">Created: {{ child_db.created_at|date:"M d, Y H:i" }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if not zfs_lineage and not child_databases %}
+                    <div class="empty-state">
+                        <p><strong>No ZFS operations recorded</strong></p>
+                        <p>This database was created before operation tracking was enabled, or no additional operations have been performed.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(elementId, button) {
+            const element = document.getElementById(elementId);
+            if (!element) {
+                console.error('Element not found:', elementId);
+                return;
+            }
+            
+            // Get text content but exclude the copy button text
+            const copyButton = element.querySelector('.copy-btn');
+            let text = element.textContent.trim();
+            if (copyButton) {
+                text = text.replace(copyButton.textContent.trim(), '').trim();
+            }
+            
+            copyText(text, button);
+        }
+        
+        function copyText(text, button) {
+            console.log('Attempting to copy:', text);
+            
+            // Check if the Clipboard API is available
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showCopySuccess(button);
+                }, function(err) {
+                    console.error('Clipboard API failed:', err);
+                    fallbackCopy(text, button);
+                });
+            } else {
+                // Fallback for older browsers or non-secure contexts
+                fallbackCopy(text, button);
+            }
+        }
+        
+        function fallbackCopy(text, button) {
+            try {
+                // Create a temporary textarea element
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = text;
+                tempTextarea.style.position = 'absolute';
+                tempTextarea.style.left = '-9999px';
+                tempTextarea.style.top = '-9999px';
+                document.body.appendChild(tempTextarea);
+                
+                tempTextarea.focus();
+                tempTextarea.select();
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(tempTextarea);
+                
+                if (successful) {
+                    showCopySuccess(button);
+                } else {
+                    showCopyError(button);
+                }
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                showCopyError(button);
+            }
+        }
+        
+        function showCopySuccess(button) {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            button.classList.add('copied');
+            button.disabled = true;
+            
+            setTimeout(function() {
+                button.textContent = originalText;
+                button.classList.remove('copied');
+                button.disabled = false;
+            }, 2000);
+        }
+        
+        function showCopyError(button) {
+            const originalText = button.textContent;
+            button.textContent = 'Failed';
+            button.style.backgroundColor = '#dc3545';
+            
+            setTimeout(function() {
+                button.textContent = originalText;
+                button.style.backgroundColor = '#007bff';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

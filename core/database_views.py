@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import HostVM, Database, DatabaseBranch
+from .models import HostVM, Database
 from .database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -131,16 +131,17 @@ def database_detail(request, database_id):
         connection_info = database.get_connection_info()
         
         # Get branches
-        branches = DatabaseBranch.objects.filter(database=database).order_by('-created_at')
-        branch_list = [
+        # No longer using branches - using ZFS operations for lineage
+        zfs_lineage = database.get_zfs_lineage()
+        operations_list = [
             {
-                'id': branch.id,
-                'name': branch.name,
-                'snapshot_name': branch.snapshot_name,
-                'is_active': branch.is_active,
-                'created_at': branch.created_at.isoformat()
+                'operation': op['operation'],
+                'source': op.get('source', ''),
+                'target': op.get('target', ''),
+                'timestamp': op['timestamp'].isoformat() if op.get('timestamp') else '',
+                'success': op.get('success', False)
             }
-            for branch in branches
+            for op in zfs_lineage
         ]
         
         database_info = {
@@ -168,7 +169,7 @@ def database_detail(request, database_id):
             'is_running': database.is_container_running(),
             'connection_info': connection_info,
             'status_info': status_info,
-            'branches': branch_list
+            'zfs_operations': operations_list
         }
         
         return Response({

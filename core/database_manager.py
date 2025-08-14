@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 from django.utils import timezone
-from .models import HostVM, Database, DatabaseBranch
+from .models import HostVM, Database
 from .container_utils import ContainerUtils
 from .zfs_dataset import ZFSDatasetManager
 
@@ -31,7 +31,8 @@ class DatabaseManager:
         self.zfs_manager = ZFSDatasetManager(host_vm)
         
     def create_database(self, name: str, pg_version: str = None, 
-                       description: str = '', **kwargs) -> Dict:
+                       description: str = '', creation_type: str = 'empty',
+                       source_database_id: int = None, source_snapshot: str = None, **kwargs) -> Dict:
         """
         Create new PostgreSQL database with ZFS backing
         
@@ -39,6 +40,9 @@ class DatabaseManager:
             name: Database name (3-63 chars, alphanumeric + underscore)
             pg_version: PostgreSQL version (defaults to 15)
             description: Optional description
+            creation_type: How to create ('empty', 'clone', 'snapshot')
+            source_database_id: Database ID to clone from (for 'clone' type)
+            source_snapshot: Snapshot path to restore from (for 'snapshot' type)
             
         Returns:
             Dict with creation result and connection info
@@ -61,12 +65,29 @@ class DatabaseManager:
             
             password = self._generate_secure_password()
             container_name = f"stagdb_db_{sanitized_name}"
+            pool_name = self.host_vm.storage_config.get_pool_name()
             
-            # 3. Create ZFS dataset
-            dataset_result = self.zfs_manager.create_database_dataset(
-                self.host_vm.storage_config.get_pool_name(), 
-                sanitized_name
-            )
+            # 3. Create ZFS dataset based on creation type
+            source_db = None
+            if creation_type == 'clone' and source_database_id:
+                source_db = Database.objects.get(id=source_database_id, host_vm=self.host_vm, is_active=True)
+                dataset_result = self.zfs_manager.create_dataset_from_clone(
+                    source_db.zfs_dataset, sanitized_name, pool_name,
+                    context={'creation_type': 'clone', 'source_database': source_db.name}
+                )
+            elif creation_type == 'snapshot' and source_snapshot:
+                dataset_result = self.zfs_manager.create_dataset_from_snapshot(
+                    source_snapshot, sanitized_name, pool_name,
+                    context={'creation_type': 'snapshot', 'source_snapshot': source_snapshot}
+                )
+            else:
+                # Default to empty dataset
+                creation_type = 'empty'
+                dataset_result = self.zfs_manager.create_dataset_from_empty(
+                    pool_name, sanitized_name,
+                    context={'creation_type': 'empty'}
+                )
+            
             if not dataset_result['success']:
                 return {
                     'success': False, 
@@ -112,7 +133,7 @@ class DatabaseManager:
                     'message': f"Database initialization failed: {init_result['message']}"
                 }
             
-            # 6. Create Database record
+            # 6. Create Database record with lineage tracking
             database = Database.objects.create(
                 name=name,
                 host_vm=self.host_vm,
@@ -127,21 +148,25 @@ class DatabaseManager:
                 database_name=sanitized_name,
                 description=description,
                 container_status='running',
-                health_status='healthy'
+                health_status='healthy',
+                # ZFS lineage tracking
+                created_from_operation=dataset_result.get('operation') or dataset_result.get('clone_operation'),
+                creation_type=creation_type,
+                source_database=source_db,
+                source_snapshot=source_snapshot or dataset_result.get('source_snapshot', '').split('@')[-1] if '@' in str(dataset_result.get('source_snapshot', '')) else ''
             )
             
-            # 7. Create initial snapshot (root branch)
-            snapshot_result = self._create_root_snapshot(database)
-            if snapshot_result['success']:
-                # Create main branch record
-                DatabaseBranch.objects.create(
-                    database=database,
-                    name='main',
-                    snapshot_name='root',
-                    is_active=True
-                )
+            # 7. Update operation with database reference
+            if hasattr(dataset_result.get('operation'), 'initiated_by_database'):
+                operation = dataset_result.get('operation') or dataset_result.get('clone_operation')
+                if operation:
+                    operation.initiated_by_database = database
+                    operation.save()
             
-            # 8. Return success with connection info
+            # 8. Create initial snapshot for future branching
+            self._create_root_snapshot(database)
+            
+            # 9. Return success with connection info
             connection_info = database.get_connection_info()
             
             logger.info(f"Database '{name}' created successfully with ID {database.id}")
@@ -167,6 +192,46 @@ class DatabaseManager:
                 'success': False,
                 'message': f'Database creation failed: {str(e)}'
             }
+    
+    def get_available_databases_for_cloning(self) -> Dict:
+        """Get list of databases available for cloning on this host"""
+        try:
+            databases = Database.objects.filter(
+                host_vm=self.host_vm, 
+                is_active=True,
+                container_status='running'
+            ).values('id', 'name', 'db_type', 'db_version', 'created_at', 'description')
+            
+            return {
+                'success': True,
+                'databases': list(databases),
+                'count': len(databases)
+            }
+        except Exception as e:
+            logger.error(f"Error getting databases for cloning: {str(e)}")
+            return {'success': False, 'message': str(e)}
+    
+    def get_available_snapshots_for_restore(self) -> Dict:
+        """Get list of available snapshots for restore operations"""
+        try:
+            pool_name = self.host_vm.storage_config.get_pool_name()
+            return self.zfs_manager.list_available_snapshots(pool_name)
+        except Exception as e:
+            logger.error(f"Error getting snapshots for restore: {str(e)}")
+            return {'success': False, 'message': str(e)}
+    
+    def create_manual_snapshot(self, database: Database, snapshot_name: str) -> Dict:
+        """Create a manual snapshot of a database for branching"""
+        try:
+            return self.zfs_manager.create_snapshot_with_tracking(
+                database.zfs_dataset, 
+                snapshot_name,
+                database=database,
+                context={'manual_snapshot': True, 'user_requested': True}
+            )
+        except Exception as e:
+            logger.error(f"Error creating manual snapshot: {str(e)}")
+            return {'success': False, 'message': str(e)}
     
     def delete_database(self, database: Database) -> Dict:
         """
@@ -196,7 +261,8 @@ class DatabaseManager:
                     cleanup_errors.append(f"Failed to destroy dataset: {dataset_result['message']}")
             
             # 3. Delete database branches
-            DatabaseBranch.objects.filter(database=database).delete()
+            # No longer using DatabaseBranch - ZFS operations are tracked separately
+            pass
             
             # 4. Delete database record
             database_name = database.name

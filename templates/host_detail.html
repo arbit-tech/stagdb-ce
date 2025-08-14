@@ -99,6 +99,12 @@
             border-radius: 8px;
             padding: 20px;
             background-color: #f9f9f9;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .database-card:hover {
+            background-color: #f0f0f0;
+            border-color: #007bff;
         }
         .database-card h3 {
             color: #333;
@@ -350,7 +356,7 @@
             {% if databases %}
                 <div class="databases-grid">
                     {% for database in databases %}
-                        <div class="database-card">
+                        <div class="database-card" onclick="window.location.href='/databases/{{ database.id }}/'">
                             <h3>{{ database.name }}</h3>
                             <p><strong>Type:</strong> {{ database.db_type|capfirst }} {{ database.db_version }}</p>
                             <p><strong>Container:</strong> {{ database.container_name }}</p>
@@ -362,10 +368,6 @@
                                 </span>
                             </p>
                             <p><strong>Created:</strong> {{ database.created_at|date:"M d, Y" }}</p>
-                            <div class="actions">
-                                <a href="/databases/{{ database.id }}/branches/" class="btn btn-small">View Branches</a>
-                                <a href="/databases/{{ database.id }}/connect/" class="btn btn-small btn-secondary">Connect</a>
-                            </div>
                         </div>
                     {% endfor %}
                 </div>

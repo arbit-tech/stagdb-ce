@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 
 
@@ -138,6 +139,14 @@ class HostVM(models.Model):
                     self.zfs_pool = healthy_pools[0]['name']
         
         self.save()
+        
+        # If validation passed and we have a ZFS pool, ensure parent datasets exist
+        if validation_results.get('overall_status') == 'valid' and self.storage_config:
+            try:
+                self._ensure_stagdb_parent_datasets()
+            except Exception as e:
+                logger.warning(f"Failed to create parent datasets on host {self.name}: {str(e)}")
+        
         return validation_results
     
     def can_create_databases(self):
@@ -165,6 +174,31 @@ class HostVM(models.Model):
             blockers.append(f"{db_count} active database{'s' if db_count != 1 else ''} running on this host")
         
         return blockers
+    
+    def _ensure_stagdb_parent_datasets(self):
+        """Ensure StagDB parent datasets exist for this host"""
+        if not self.storage_config or not self.storage_config.is_configured:
+            return
+            
+        from .zfs_dataset import ZFSDatasetManager
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            zfs_manager = ZFSDatasetManager(self)
+            pool_name = self.storage_config.get_pool_name()
+            
+            logger.info(f"Ensuring parent datasets exist for pool {pool_name}")
+            result = zfs_manager._ensure_parent_datasets(pool_name)
+            
+            if result['success']:
+                logger.info(f"Parent datasets ready for host {self.name}")
+            else:
+                logger.error(f"Failed to create parent datasets: {result['message']}")
+                
+        except Exception as e:
+            logger.error(f"Error ensuring parent datasets for host {self.name}: {str(e)}")
+            raise
     
     def get_validation_summary(self):
         """Get a summary of validation status"""
@@ -253,6 +287,19 @@ class Database(models.Model):
     database_name = models.CharField(max_length=100, default='')  # Actual DB name inside PostgreSQL
     connection_string = models.TextField(blank=True)  # Cached connection string
     
+    # ZFS lineage tracking
+    created_from_operation = models.ForeignKey('ZFSOperation', on_delete=models.SET_NULL, null=True, blank=True, 
+                                               help_text="The ZFS operation that created this database's dataset")
+    creation_type = models.CharField(max_length=20, choices=[
+        ('empty', 'Empty Dataset'),
+        ('clone', 'Cloned from Database'),
+        ('snapshot', 'Restored from Snapshot'),
+    ], default='empty')
+    source_database = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True,
+                                        help_text="Source database if this was cloned")
+    source_snapshot = models.CharField(max_length=200, blank=True,
+                                       help_text="Source snapshot name if restored from snapshot")
+    
     # Metadata
     description = models.TextField(blank=True)
     tags = models.JSONField(default=list, blank=True)
@@ -287,20 +334,148 @@ class Database(models.Model):
     def is_container_running(self):
         """Check if container is currently running"""
         return self.container_status == 'running' and self.health_status in ['healthy', 'starting']
+    
+    def get_storage_metrics(self):
+        """Get ZFS dataset storage metrics"""
+        from .zfs_dataset import ZFSDatasetManager
+        
+        try:
+            zfs_manager = ZFSDatasetManager(self.host_vm)
+            return zfs_manager.get_dataset_metrics(self.zfs_dataset)
+        except Exception as e:
+            return {
+                'used': 'Unknown',
+                'available': 'Unknown', 
+                'referenced': 'Unknown',
+                'error': str(e)
+            }
+    
+    def get_snapshot_hierarchy(self):
+        """Get ZFS snapshot hierarchy from root to current state"""
+        from .zfs_dataset import ZFSDatasetManager
+        
+        try:
+            zfs_manager = ZFSDatasetManager(self.host_vm)
+            return zfs_manager.get_snapshot_hierarchy(self.zfs_dataset)
+        except Exception as e:
+            return {
+                'snapshots': [],
+                'error': str(e)
+            }
+    
+    def get_zfs_lineage(self):
+        """Get the complete ZFS lineage for this database"""
+        lineage = []
+        
+        # Add creation operation
+        if self.created_from_operation:
+            lineage.append(self.created_from_operation.get_lineage_info())
+        
+        # Get all ZFS operations related to this database's dataset
+        operations = ZFSOperation.objects.filter(
+            Q(source_dataset=self.zfs_dataset) |
+            Q(target_dataset=self.zfs_dataset) |
+            Q(initiated_by_database=self)
+        ).order_by('started_at')
+        
+        for op in operations:
+            lineage.append(op.get_lineage_info())
+        
+        return lineage
+    
+    def get_creation_info(self):
+        """Get information about how this database was created"""
+        if self.creation_type == 'clone' and self.source_database:
+            return {
+                'type': 'Cloned from Database',
+                'source': self.source_database.name,
+                'details': f"Cloned from {self.source_database.name}"
+            }
+        elif self.creation_type == 'snapshot' and self.source_snapshot:
+            return {
+                'type': 'Restored from Snapshot',
+                'source': self.source_snapshot,
+                'details': f"Restored from snapshot {self.source_snapshot}"
+            }
+        else:
+            return {
+                'type': 'Empty Dataset',
+                'source': None,
+                'details': "Created as new empty database"
+            }
+    
+    def get_child_databases(self):
+        """Get databases that were cloned from this one"""
+        return Database.objects.filter(source_database=self, is_active=True)
 
 
-class DatabaseBranch(models.Model):
-    database = models.ForeignKey(Database, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
-    snapshot_name = models.CharField(max_length=200)
-    is_active = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+class ZFSOperation(models.Model):
+    """Track all ZFS operations for audit trail and lineage"""
+    
+    OPERATION_TYPES = [
+        ('create', 'Create Dataset'),
+        ('snapshot', 'Create Snapshot'),
+        ('clone', 'Clone from Snapshot'),
+        ('destroy', 'Destroy Dataset/Snapshot'),
+        ('rollback', 'Rollback to Snapshot'),
+        ('rename', 'Rename Dataset/Snapshot'),
+    ]
+    
+    # Operation details
+    operation_type = models.CharField(max_length=20, choices=OPERATION_TYPES)
+    source_dataset = models.CharField(max_length=500, blank=True)  # Source dataset/snapshot
+    target_dataset = models.CharField(max_length=500, blank=True)  # Target dataset
+    snapshot_name = models.CharField(max_length=200, blank=True)   # Snapshot name if applicable
+    
+    # Execution details
+    command_executed = models.TextField()  # Actual ZFS command run
+    success = models.BooleanField()
+    stdout = models.TextField(blank=True)  # Command output
+    stderr = models.TextField(blank=True)  # Error output
+    
+    # Context
+    host_vm = models.ForeignKey(HostVM, on_delete=models.CASCADE)
+    initiated_by_database = models.ForeignKey(Database, on_delete=models.SET_NULL, null=True, blank=True)
+    operation_context = models.JSONField(default=dict, blank=True)  # Additional context (user actions, etc.)
+    
+    # Timing
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
     
     class Meta:
-        unique_together = ['database', 'name']
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['operation_type', 'success']),
+            models.Index(fields=['source_dataset']),
+            models.Index(fields=['target_dataset']),
+            models.Index(fields=['host_vm', '-started_at']),
+        ]
     
     def __str__(self):
-        return f"{self.database.name}:{self.name}"
+        if self.operation_type == 'clone':
+            return f"Clone {self.source_dataset} → {self.target_dataset}"
+        elif self.operation_type == 'snapshot':
+            return f"Snapshot {self.source_dataset}@{self.snapshot_name}"
+        else:
+            return f"{self.get_operation_type_display()}: {self.target_dataset or self.source_dataset}"
+    
+    def get_full_source_path(self):
+        """Get full source path including snapshot if applicable"""
+        if self.snapshot_name and self.source_dataset:
+            return f"{self.source_dataset}@{self.snapshot_name}"
+        return self.source_dataset
+    
+    def get_lineage_info(self):
+        """Get information about this operation's place in dataset lineage"""
+        return {
+            'operation': self.get_operation_type_display(),
+            'source': self.get_full_source_path(),
+            'target': self.target_dataset,
+            'timestamp': self.started_at,
+            'success': self.success,
+            'context': self.operation_context
+        }
 
 
 # Storage Configuration Models

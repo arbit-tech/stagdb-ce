@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import HostVM, Database, DatabaseBranch, StorageConfiguration, StorageQuota
+from .models import HostVM, Database, ZFSOperation, StorageConfiguration, StorageQuota
 
 
 @admin.register(HostVM)
@@ -40,11 +40,27 @@ class DatabaseAdmin(admin.ModelAdmin):
     search_fields = ('name', 'host_vm__name')
 
 
-@admin.register(DatabaseBranch)
-class DatabaseBranchAdmin(admin.ModelAdmin):
-    list_display = ('database', 'name', 'is_active', 'created_at')
-    list_filter = ('is_active', 'created_at')
-    search_fields = ('database__name', 'name')
+@admin.register(ZFSOperation)
+class ZFSOperationAdmin(admin.ModelAdmin):
+    list_display = ('operation_type', 'source_dataset', 'target_dataset', 'success', 'host_vm', 'started_at', 'duration_seconds')
+    list_filter = ('operation_type', 'success', 'host_vm', 'started_at')
+    search_fields = ('source_dataset', 'target_dataset', 'snapshot_name', 'host_vm__name')
+    readonly_fields = ('started_at', 'completed_at', 'duration_seconds')
+    
+    fieldsets = (
+        ('Operation Details', {
+            'fields': ('operation_type', 'source_dataset', 'target_dataset', 'snapshot_name')
+        }),
+        ('Execution', {
+            'fields': ('command_executed', 'success', 'stdout', 'stderr')
+        }),
+        ('Context', {
+            'fields': ('host_vm', 'initiated_by_database', 'operation_context')
+        }),
+        ('Timing', {
+            'fields': ('started_at', 'completed_at', 'duration_seconds')
+        })
+    )
 
 
 @admin.register(StorageConfiguration)

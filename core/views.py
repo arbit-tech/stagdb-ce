@@ -6,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import HostVM, Database, DatabaseBranch
+from .models import HostVM, Database
 from .host_validator import HostValidator
 import logging
 
@@ -83,7 +83,8 @@ def host_detail(request, host_id):
     host = get_object_or_404(HostVM, id=host_id, is_active=True)
     databases = Database.objects.filter(host_vm=host, is_active=True)
     
-    branches_count = DatabaseBranch.objects.filter(database__host_vm=host).count()
+    # No longer tracking branches - using ZFS operations instead
+    branches_count = 0
     
     context = {
         'host': host,
@@ -93,6 +94,40 @@ def host_detail(request, host_id):
         'branches_count': branches_count,
     }
     return render(request, 'host_detail.html', context)
+
+
+@login_required
+def database_detail_page(request, database_id):
+    """Display comprehensive database information"""
+    database = get_object_or_404(Database, id=database_id, is_active=True)
+    
+    # Get connection information
+    connection_info = database.get_connection_info()
+    
+    # Get storage metrics
+    storage_metrics = database.get_storage_metrics()
+    
+    # Get snapshot hierarchy
+    snapshot_hierarchy = database.get_snapshot_hierarchy()
+    
+    # Get ZFS lineage and creation info
+    zfs_lineage = database.get_zfs_lineage()
+    creation_info = database.get_creation_info()
+    child_databases = database.get_child_databases()
+    
+    context = {
+        'database': database,
+        'connection_info': connection_info,
+        'storage_metrics': storage_metrics,
+        'snapshot_hierarchy': snapshot_hierarchy,
+        'zfs_lineage': zfs_lineage,
+        'child_databases': child_databases,
+        'host': database.host_vm,
+    }
+    
+    # Add creation info to database object for template access
+    database.creation_info = creation_info
+    return render(request, 'database_detail.html', context)
 
 
 @login_required

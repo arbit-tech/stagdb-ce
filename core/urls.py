@@ -13,6 +13,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('hosts/<int:host_id>/', views.host_detail, name='host_detail'),
     path('hosts/<int:host_id>/databases/add/', views.add_database, name='add_database'),
+    path('databases/<int:database_id>/', views.database_detail_page, name='database_detail_page'),
     path('databases/<int:database_id>/connect/', views.database_connect, name='database_connect'),
     path('hosts/add/', views.add_host, name='add_host'),
     path('hosts/docker-setup/', docker_host_views.docker_host_setup_wizard, name='docker_host_setup'),

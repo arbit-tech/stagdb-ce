@@ -26,6 +26,9 @@ PostgreSQL databases run in Docker containers with ZFS-backed storage, providing
 ### 🖥️ Web Dashboard
 Intuitive web interface for managing hosts, databases, and branches. Connect to remote VMs or use local Docker environments.
 
+### ⚙️ Intelligent Storage Configuration
+Guided setup wizard with smart storage recommendations based on your system resources. Supports multiple storage backends including existing ZFS pools, dedicated disks with RAID configurations, image files, and directory storage.
+
 ### 📦 Zero-Copy Technology
 Leverages ZFS copy-on-write snapshots to create database branches without duplicating data until changes are made.
 
@@ -60,7 +63,7 @@ Connect to remote hosts securely via SSH for distributed database management acr
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/arbit-tech/stagdb-ce.git
    cd stagdb-ce
    ```
 
@@ -70,19 +73,22 @@ Connect to remote hosts securely via SSH for distributed database management acr
    ```
 
 3. **Access the dashboard**
-   - Open http://localhost in your browser
+   - **Local setup**: Open http://localhost in your browser
+   - **Remote server**: Open http://YOUR_SERVER_IP in your browser
+   - **Custom port**: If you modified the Docker Compose file, use the appropriate port
    - Login with default credentials: `admin` / `stagdb123`
 
 4. **Setup your first host**
-   - Use the Docker host setup for local development
-   - Or connect to a remote VM with ZFS and Docker
+   - Click "🐳 Setup Docker Host" to configure your environment with guided storage setup
+   - The setup wizard includes intelligent storage recommendations and advanced ZFS configuration options
+   - Or manually connect to a remote VM with ZFS and Docker support
 
 ### First Database
 
-1. **Configure storage** - Set up ZFS pools for database storage
-2. **Create database** - Launch a PostgreSQL container with ZFS backing
-3. **Create branches** - Instantly branch your database for different scenarios
-4. **Connect and develop** - Use standard PostgreSQL tools and connection strings
+1. **Complete host setup** - Storage configuration is now integrated into the Docker host setup wizard
+2. **Create database** - Launch a PostgreSQL container with ZFS backing on your configured storage
+3. **Create branches** - Instantly branch your database for different scenarios using ZFS snapshots
+4. **Connect and develop** - Use standard PostgreSQL tools and connection strings provided in the dashboard
 
 ## Technology Stack
 
@@ -103,12 +109,27 @@ StagDB CE uses a three-layer architecture:
 
 Each database runs in its own Docker container with a dedicated ZFS dataset. Branches are created by taking ZFS snapshots and creating clones, enabling instant database duplication with minimal storage overhead.
 
+## Recent Improvements
+
+### Enhanced Storage Configuration
+- **Intelligent Recommendations**: System automatically analyzes available resources and suggests optimal storage configurations
+- **Advanced ZFS Options**: Support for RAID-Z configurations, compression settings, and deduplication
+- **Integrated Workflow**: Storage configuration is now seamlessly integrated into the host setup process
+- **Visual Interface**: Rich recommendation cards with pros/cons analysis and difficulty ratings
+
+### Streamlined Setup Experience
+- **Unified Setup Path**: Single, comprehensive setup wizard replacing multiple configuration flows
+- **Automated Cleanup**: Host removal now properly cleans up ZFS pools, datasets, and image files
+- **Better Validation**: Enhanced validation with detailed feedback and error handling
+- **Improved Dashboard**: Cleaner interface focusing on essential actions and workflows
+
 ## Documentation
 
-- **Setup Guide**: See [CLAUDE.md](CLAUDE.md) for detailed development instructions
-- **API Reference**: RESTful API for programmatic database management
-- **Storage Configuration**: Multiple storage backend options supported
-- **Docker Integration**: Container lifecycle management and monitoring
+- **Setup Guide**: See [CLAUDE.md](CLAUDE.md) for detailed development instructions and architecture overview
+- **Storage Configuration**: Comprehensive wizard with intelligent recommendations for ZFS pools, RAID configurations, and storage optimization
+- **API Reference**: RESTful API for programmatic database management and storage operations
+- **Docker Integration**: Container lifecycle management, monitoring, and automated cleanup
+- **Host Management**: Remote host validation, storage synchronization, and automated resource cleanup
 
 ## Support & Community
 

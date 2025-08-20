@@ -134,16 +134,12 @@
             color: #666;
             margin: 5px 0 0 0;
         }
-        .system-validation {
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
-            border-left: 4px solid #007bff;
-        }
-        .system-validation h3 {
-            color: #333;
-            margin: 0 0 15px 0;
+        .component-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-right: 5px;
         }
         .validation-button {
             background-color: #007bff;
@@ -163,10 +159,7 @@
             cursor: not-allowed;
         }
         .validation-status {
-            margin-top: 15px;
-            padding: 10px;
             border-radius: 4px;
-            display: none;
         }
         .validation-status.success {
             background-color: #d4edda;
@@ -182,17 +175,6 @@
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
-        }
-        .validation-details {
-            margin-top: 10px;
-            font-size: 14px;
-        }
-        .component-status {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
-            margin-right: 5px;
         }
         .component-status.pass {
             background-color: #28a745;
@@ -357,20 +339,10 @@
             </div>
         </div>
 
-        <div class="system-validation">
-            <h3>System Validation</h3>
-            <p>Validate that the Docker host has all required components for database deployment.</p>
-            <button onclick="validateSystem()" class="validation-button" id="validateBtn">
-                Validate Docker Host
-            </button>
-            <button onclick="setupDockerHost()" class="validation-button" id="setupBtn">
-                Setup Docker Host
-            </button>
-            
-            <div id="validationStatus" class="validation-status">
-                <div id="validationMessage"></div>
-                <div id="validationDetails" class="validation-details"></div>
-            </div>
+        <!-- Simple validation status area for host operations -->
+        <div id="validationStatus" class="validation-status" style="display: none; margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+            <div id="validationMessage"></div>
+            <div id="validationDetails" class="validation-details" style="margin-top: 10px; font-size: 14px;"></div>
         </div>
 
         <div class="hosts-section">
@@ -420,7 +392,6 @@
                     <h3>No Hosts Connected</h3>
                     <p>Set up your Docker host to start creating databases with instant branching capabilities.</p>
                     <a href="/hosts/docker-setup/" class="add-host-btn" style="background-color: #2196F3; margin-right: 15px;">🐳 Setup Docker Host</a>
-                    <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">🗄️ Configure Storage</a>
                     <a href="/hosts/add/" class="add-host-btn">Add Remote Host</a>
                 </div>
             {% endif %}
@@ -433,7 +404,6 @@
                         <a href="/databases/" class="add-host-btn" style="background-color: #FF9800; margin-right: 15px;">📊 Manage Databases</a>
                     {% endif %}
                     <a href="/hosts/docker-setup/" class="add-host-btn" style="background-color: #2196F3; margin-right: 15px;">🐳 Setup Docker Host</a>
-                    <a href="/storage/" class="add-host-btn" style="background-color: #28a745; margin-right: 15px;">⚙️ Configure Storage</a>
                     <a href="/storage/sync/" class="add-host-btn" style="background-color: #FF6B35; margin-right: 15px;">🔄 Storage Sync</a>
                     <a href="/hosts/add/" class="add-host-btn">➕ Add Remote Host</a>
                 </div>
@@ -512,102 +482,6 @@
             return html;
         }
 
-        async function validateSystem() {
-            const validateBtn = document.getElementById('validateBtn');
-            validateBtn.disabled = true;
-            validateBtn.textContent = 'Validating...';
-            
-            try {
-                const response = await fetch('/api/system/validate/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({
-                        force_revalidation: true
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    const summary = data.summary;
-                    const statusType = summary.status === 'pass' ? 'success' : 
-                                     summary.status === 'warning' ? 'warning' : 'error';
-                    
-                    showValidationStatus(
-                        summary.message,
-                        statusType,
-                        formatValidationDetails(summary)
-                    );
-                } else {
-                    showValidationStatus(
-                        'Validation failed: ' + (data.message || data.error),
-                        'error'
-                    );
-                }
-            } catch (error) {
-                showValidationStatus(
-                    'Network error during validation: ' + error.message,
-                    'error'
-                );
-            } finally {
-                validateBtn.disabled = false;
-                validateBtn.textContent = 'Validate Docker Host';
-            }
-        }
-
-        async function setupDockerHost() {
-            const setupBtn = document.getElementById('setupBtn');
-            setupBtn.disabled = true;
-            setupBtn.textContent = 'Setting up...';
-            
-            try {
-                const response = await fetch('/api/system/setup/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({})
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    const summary = data.summary;
-                    const statusType = summary.status === 'valid' ? 'success' : 
-                                     summary.status === 'warning' ? 'warning' : 'error';
-                    
-                    let message = `Docker host ${data.docker_host.created ? 'created' : 'updated'} successfully. ${summary.message}`;
-                    
-                    showValidationStatus(
-                        message,
-                        statusType,
-                        formatValidationDetails(summary)
-                    );
-                    
-                    // Refresh the page after a short delay to show updated host list
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
-                } else {
-                    showValidationStatus(
-                        'Setup failed: ' + (data.message || data.error),
-                        'error'
-                    );
-                }
-            } catch (error) {
-                showValidationStatus(
-                    'Network error during setup: ' + error.message,
-                    'error'
-                );
-            } finally {
-                setupBtn.disabled = false;
-                setupBtn.textContent = 'Setup Docker Host';
-            }
-        }
 
         async function validateHost(hostId) {
             try {
@@ -808,27 +682,6 @@
             }
         }
 
-        // Load initial status on page load
-        document.addEventListener('DOMContentLoaded', async function() {
-            try {
-                const response = await fetch('/api/system/status/');
-                const data = await response.json();
-                
-                if (data.success && data.summary && data.summary.status !== 'not_validated') {
-                    const summary = data.summary;
-                    const statusType = summary.status === 'valid' ? 'success' : 
-                                     summary.status === 'warning' ? 'warning' : 'error';
-                    
-                    showValidationStatus(
-                        `Last validation: ${summary.message}`,
-                        statusType,
-                        formatValidationDetails(summary)
-                    );
-                }
-            } catch (error) {
-                console.log('Could not load initial system status:', error);
-            }
-        });
     </script>
 </body>
 </html>

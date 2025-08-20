@@ -451,8 +451,21 @@ def remove_host(request, host_id):
             'id': host.id,
             'name': host.name,
             'ip_address': str(host.ip_address),
-            'is_docker_host': host.is_docker_host
+            'is_docker_host': host.is_docker_host,
+            'storage_config': host.storage_config.name if host.storage_config else None
         }
+        
+        # Clean up storage configuration if present
+        storage_cleanup_result = None
+        if host.storage_config and host.storage_config.is_configured:
+            from .storage_utils import StorageUtils
+            storage_utils = StorageUtils()
+            storage_cleanup_result = storage_utils.cleanup_storage_configuration(host.storage_config)
+            
+            if not storage_cleanup_result['success']:
+                logger.warning(f"Storage cleanup failed for host {host.name}: {storage_cleanup_result['message']}")
+            else:
+                logger.info(f"Storage cleanup completed for host {host.name}: {storage_cleanup_result['message']}")
         
         # Special handling for docker-host
         if host.is_docker_host:
@@ -462,13 +475,27 @@ def remove_host(request, host_id):
         host.is_active = False
         host.save()
         
+        # Also mark the storage configuration as inactive if it exists
+        if host.storage_config:
+            host.storage_config.is_active = False
+            host.storage_config.save()
+        
         logger.info(f"Host removed: {host.name} (ID: {host.id})")
         
-        return Response({
+        # Prepare response with cleanup details
+        response_data = {
             'success': True,
             'message': f'Host "{host_info["name"]}" has been removed successfully',
             'removed_host': host_info
-        })
+        }
+        
+        # Include storage cleanup results if applicable
+        if storage_cleanup_result:
+            response_data['storage_cleanup'] = storage_cleanup_result
+            if not storage_cleanup_result['success']:
+                response_data['message'] += ' (with storage cleanup warnings)'
+        
+        return Response(response_data)
         
     except Exception as e:
         logger.error(f"Host removal failed: {str(e)}")

@@ -268,6 +268,181 @@
             color: #666;
         }
 
+        /* Enhanced Storage Configuration Styles */
+        .recommendation-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #2196F3;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .pros-cons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .pros, .cons {
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .pros {
+            background: #e8f5e8;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .cons {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+        }
+
+        .pros h5, .cons h5 {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .pros ul, .cons ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .pros li::before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .cons li::before {
+            content: "⚠ ";
+            color: #ff9800;
+            font-weight: bold;
+        }
+
+        .difficulty-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .difficulty-easy {
+            background: #e8f5e8;
+            color: #4CAF50;
+        }
+
+        .difficulty-medium {
+            background: #fff3e0;
+            color: #ff9800;
+        }
+
+        .difficulty-advanced {
+            background: #ffebee;
+            color: #f44336;
+        }
+
+        .advanced-config {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .form-help {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .disk-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .disk-item {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+        }
+
+        .disk-item:hover {
+            border-color: #2196F3;
+        }
+
+        .disk-item.selected {
+            border-color: #2196F3;
+            background: #f0f8ff;
+        }
+
+        .disk-item.unavailable {
+            border-color: #f44336;
+            background: #ffebee;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .disk-name {
+            font-weight: bold;
+            margin-bottom: 3px;
+            font-size: 0.9rem;
+        }
+
+        .disk-size {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .disk-reason {
+            color: #f44336;
+            font-size: 0.7rem;
+            margin-top: 3px;
+        }
+
         /* Validation Results */
         .validation-results {
             margin: 20px 0;
@@ -534,15 +709,36 @@
                         Select or configure storage for your database deployment
                     </p>
 
-                    <div class="storage-grid" id="storage-options">
-                        <!-- Storage options will be populated by JavaScript -->
+                    <!-- System Information Display -->
+                    <div id="system-info-display" style="display: none; margin-bottom: 30px;">
+                        <div style="background: #f0f8ff; border: 1px solid #2196F3; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                            <h4 style="color: #1976d2; margin-bottom: 15px;">📊 System Information</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 1.5rem; font-weight: bold; color: #1976d2;" id="available-disks-count">-</div>
+                                    <div style="font-size: 0.9rem; color: #666;">Available Disks</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 1.5rem; font-weight: bold; color: #1976d2;" id="available-space">-</div>
+                                    <div style="font-size: 0.9rem; color: #666;">Available Space</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 1.5rem; font-weight: bold; color: #1976d2;" id="existing-pools-count">-</div>
+                                    <div style="font-size: 0.9rem; color: #666;">Existing ZFS Pools</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div style="text-align: center; margin-top: 20px;">
-                        <a href="/storage/" class="btn btn-secondary">
-                            <span class="btn-icon">⚙️</span>
-                            Configure New Storage
-                        </a>
+                    <div id="storage-type-selection" style="margin-bottom: 30px;">
+                        <h4 style="margin-bottom: 20px; text-align: center;">Choose Storage Configuration</h4>
+                        <div class="storage-grid" id="storage-type-options">
+                            <!-- Storage type options will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <div id="storage-configuration" style="display: none;">
+                        <!-- Storage configuration form will be populated based on selected type -->
                     </div>
                 </div>
 
@@ -609,7 +805,9 @@
     <script>
         let currentStep = 1;
         let systemStatus = {};
-        let selectedStorageConfig = null;
+        let selectedStorageType = null;
+        let storageConfigData = {};
+        let storageOptions = {};
         let validationResults = {};
         let hostConfiguration = {};
 
@@ -682,74 +880,334 @@
 
         async function loadStorageOptions() {
             try {
-                const response = await fetch('/api/hosts/docker-host/status/');
+                // Load comprehensive storage options from the storage API
+                const response = await fetch('/api/storage/options/');
                 const data = await response.json();
                 
                 if (data.success) {
-                    displayStorageOptions(data.available_storage);
+                    storageOptions = data.options;
+                    await loadStorageRecommendations();
+                    displaySystemInfo();
+                    displayStorageRecommendations();
                 } else {
-                    console.error('Failed to load storage configurations');
+                    console.error('Failed to load storage options');
+                    // Fallback to basic storage types
+                    displayBasicStorageTypes();
                 }
             } catch (error) {
                 console.error('Failed to load storage options:', error);
+                displayBasicStorageTypes();
             }
         }
 
-        function displayStorageOptions(configurations) {
-            const container = document.getElementById('storage-options');
+        async function loadStorageRecommendations() {
+            try {
+                const response = await fetch('/api/storage/recommendations/');
+                const data = await response.json();
+                
+                if (data.success) {
+                    storageOptions.recommendations = data.recommendations;
+                }
+            } catch (error) {
+                console.error('Failed to load storage recommendations:', error);
+            }
+        }
+
+        function displaySystemInfo() {
+            if (!storageOptions) return;
+            
+            document.getElementById('system-info-display').style.display = 'block';
+            
+            // Update system info display
+            const availableDisks = storageOptions.available_disks ? 
+                storageOptions.available_disks.filter(d => d.available).length : 0;
+            const availableSpace = storageOptions.system_space ? 
+                storageOptions.system_space.available : 'Unknown';
+            const existingPools = storageOptions.existing_pools ? 
+                storageOptions.existing_pools.length : 0;
+            
+            document.getElementById('available-disks-count').textContent = availableDisks;
+            document.getElementById('available-space').textContent = availableSpace;
+            document.getElementById('existing-pools-count').textContent = existingPools;
+        }
+
+        function displayStorageRecommendations() {
+            const container = document.getElementById('storage-type-options');
             container.innerHTML = '';
 
-            if (configurations.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        <h4>No Storage Configurations Found</h4>
-                        <p>You need to create a storage configuration first.</p>
-                        <a href="/storage/" class="btn btn-primary" style="margin-top: 20px;">
-                            Create Storage Configuration
-                        </a>
-                    </div>
-                `;
-                return;
+            if (storageOptions.recommendations && storageOptions.recommendations.length > 0) {
+                // Use intelligent recommendations from the API
+                storageOptions.recommendations.forEach((recommendation, index) => {
+                    const card = createRecommendationCard(recommendation, index === 0);
+                    container.appendChild(card);
+                });
+            } else {
+                // Fallback to basic storage types
+                displayBasicStorageTypes();
             }
+        }
 
-            configurations.forEach(config => {
-                const card = createStorageCard(config);
+        function displayBasicStorageTypes() {
+            const container = document.getElementById('storage-type-options');
+            container.innerHTML = '';
+
+            const storageTypes = [
+                {
+                    type: 'existing_pool',
+                    title: 'Use Existing ZFS Pool',
+                    description: 'Use an existing ZFS pool on your system',
+                    icon: '🏊',
+                    recommended: storageOptions.existing_pools && storageOptions.existing_pools.length > 0
+                },
+                {
+                    type: 'dedicated_disk',
+                    title: 'Dedicated Disk',
+                    description: 'Use a dedicated disk for ZFS storage',
+                    icon: '💽',
+                    recommended: storageOptions.available_disks && storageOptions.available_disks.length > 0
+                },
+                {
+                    type: 'image_file',
+                    title: 'Image File Storage',
+                    description: 'Create ZFS pool using an image file',
+                    icon: '📁',
+                    recommended: storageOptions.max_image_size_gb >= 20
+                },
+                {
+                    type: 'directory',
+                    title: 'Directory Storage',
+                    description: 'Simple directory-based storage (no ZFS)',
+                    icon: '📂',
+                    recommended: false
+                }
+            ];
+
+            storageTypes.forEach(storageType => {
+                const card = createStorageTypeCard(storageType);
                 container.appendChild(card);
             });
         }
 
-        function createStorageCard(config) {
+        function createRecommendationCard(recommendation, isRecommended) {
             const card = document.createElement('div');
-            card.className = `storage-card ${config.is_configured ? 'configured' : ''}`;
-            card.onclick = () => selectStorage(config);
+            card.className = `storage-card ${isRecommended ? 'recommended' : ''}`;
+            card.style.position = 'relative';
+            card.onclick = () => selectStorageType(recommendation.type, recommendation.config);
             
             card.innerHTML = `
-                <div class="storage-title">
-                    ${config.name}
-                    <span class="storage-status ${config.is_configured ? 'configured' : 'not-configured'}">
-                        ${config.is_configured ? 'Configured' : 'Not Configured'}
-                    </span>
+                ${isRecommended ? '<div class="recommendation-badge">Recommended</div>' : ''}
+                <div class="storage-title">${recommendation.title}</div>
+                <div class="storage-description">${recommendation.description}</div>
+                <div class="pros-cons">
+                    <div class="pros">
+                        <h5>Pros</h5>
+                        <ul>
+                            ${recommendation.pros.map(pro => `<li>${pro}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="cons">
+                        <h5>Cons</h5>
+                        <ul>
+                            ${recommendation.cons.map(con => `<li>${con}</li>`).join('')}
+                        </ul>
+                    </div>
                 </div>
-                <div class="storage-description">${config.type}</div>
-                <div class="storage-details">
-                    ${getStorageDetails(config)}
+                <div class="difficulty-badge difficulty-${recommendation.difficulty.toLowerCase()}">
+                    ${recommendation.difficulty}
                 </div>
             `;
             
             return card;
         }
 
-        function getStorageDetails(config) {
-            if (config.pool_name) {
-                return `Pool: ${config.pool_name}`;
-            } else if (config.directory) {
-                return `Directory: ${config.directory}`;
-            } else {
-                return 'Configuration pending';
-            }
+        function createStorageTypeCard(storageType) {
+            const card = document.createElement('div');
+            card.className = 'storage-card';
+            card.onclick = () => selectStorageType(storageType.type);
+            
+            const recommendedBadge = storageType.recommended ? 
+                '<span class="storage-status configured">Recommended</span>' : '';
+            
+            card.innerHTML = `
+                <div class="storage-title">
+                    ${storageType.icon} ${storageType.title}
+                    ${recommendedBadge}
+                </div>
+                <div class="storage-description">${storageType.description}</div>
+            `;
+            
+            return card;
         }
 
-        function selectStorage(config) {
+        function getStorageTypeTitle(type) {
+            const titles = {
+                'existing_pool': 'Existing ZFS Pool',
+                'dedicated_disk': 'Dedicated Disk Storage',
+                'image_file': 'Image File Storage',
+                'directory': 'Directory Storage'
+            };
+            return titles[type] || type;
+        }
+
+        function createExistingPoolForm() {
+            const pools = storageOptions.existing_pools || [];
+            if (pools.length === 0) {
+                return '<p style="color: #f44336;">No existing ZFS pools found on the system.</p>';
+            }
+            
+            let poolOptions = pools.map(pool => 
+                `<option value="${pool.name}">${pool.name} (${pool.size} total, ${pool.free} free, ${pool.health})</option>`
+            ).join('');
+            
+            return `
+                <div class="form-group">
+                    <label for="existing-pool-name">Select ZFS Pool:</label>
+                    <select id="existing-pool-name" name="existing_pool_name">
+                        <option value="">Select a pool...</option>
+                        ${poolOptions}
+                    </select>
+                    <div class="form-help">Select from available healthy ZFS pools on your system</div>
+                </div>
+            `;
+        }
+
+        function createDedicatedDiskForm() {
+            const disks = storageOptions.available_disks || [];
+            if (disks.length === 0) {
+                return '<p style="color: #f44336;">No available disks found for dedicated storage.</p>';
+            }
+            
+            const availableDisks = disks.filter(d => d.available);
+            const unavailableDisks = disks.filter(d => !d.available);
+            
+            let diskSelection = '';
+            
+            if (availableDisks.length > 0) {
+                diskSelection += availableDisks.map(disk => 
+                    `<div class="disk-item" onclick="toggleDiskSelection('${disk.path}', this)">
+                        <div class="disk-name">${disk.name}</div>
+                        <div class="disk-size">${disk.size}</div>
+                    </div>`
+                ).join('');
+            }
+            
+            if (unavailableDisks.length > 0) {
+                diskSelection += unavailableDisks.map(disk => 
+                    `<div class="disk-item unavailable">
+                        <div class="disk-name">${disk.name}</div>
+                        <div class="disk-size">${disk.size}</div>
+                        <div class="disk-reason">${disk.reason || 'Unavailable'}</div>
+                    </div>`
+                ).join('');
+            }
+            
+            return `
+                <div class="form-group">
+                    <label>Select Disk(s):</label>
+                    <div class="disk-selection">${diskSelection}</div>
+                    <div class="form-help">Select one or more disks to create a dedicated ZFS pool</div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="pool-name">Pool Name:</label>
+                        <input type="text" id="pool-name" name="pool_name" placeholder="stagdb-pool">
+                        <div class="form-help">Name for the new ZFS pool</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="pool-type">Pool Type:</label>
+                        <select id="pool-type" name="pool_type">
+                            <option value="single">Single Disk</option>
+                            <option value="mirror">Mirror (RAID 1)</option>
+                            <option value="raidz1">RAID-Z1 (Single Parity)</option>
+                            <option value="raidz2">RAID-Z2 (Double Parity)</option>
+                        </select>
+                        <div class="form-help">Choose redundancy level (requires multiple disks for RAID)</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createImageFileForm() {
+            const maxSize = storageOptions.max_image_size_gb || 50;
+            const recommendedSize = Math.min(30, Math.floor(maxSize * 0.6));
+            
+            return `
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="image-file-path">Image File Path:</label>
+                        <input type="text" id="image-file-path" name="image_file_path" value="/opt/stagdb/storage.img">
+                        <div class="form-help">Path where the ZFS image file will be created</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="pool-name">Pool Name:</label>
+                        <input type="text" id="pool-name" name="pool_name" placeholder="stagdb-pool">
+                        <div class="form-help">Name for the new ZFS pool</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="image-file-size">Size (GB):</label>
+                        <input type="number" id="image-file-size" name="image_file_size_gb" value="${recommendedSize}" min="10" max="${maxSize}">
+                        <div class="form-help">Maximum available: ${maxSize}GB</div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="sparse-file" name="sparse_file" checked style="margin-right: 8px;">
+                            Use sparse file (recommended)
+                        </label>
+                        <div class="form-help">Sparse files only use space as needed, growing dynamically</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createDirectoryForm() {
+            return `
+                <div class="form-group">
+                    <label for="storage-directory">Storage Directory:</label>
+                    <input type="text" id="storage-directory" name="storage_directory" value="/opt/stagdb/data">
+                    <div class="form-help">Directory for database storage (development only - no ZFS features)</div>
+                </div>
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                    <strong style="color: #856404;">⚠️ Note:</strong>
+                    <p style="color: #856404; margin: 5px 0 0 0;">Directory storage doesn't support ZFS features like snapshots and compression. Use only for development/testing.</p>
+                </div>
+            `;
+        }
+
+        function createAdvancedConfigForm() {
+            return `
+                <div class="advanced-config">
+                    <h5 style="margin-bottom: 15px;">⚙️ Advanced Options</h5>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="config-name">Configuration Name:</label>
+                            <input type="text" id="config-name" name="name" placeholder="Docker Host Storage">
+                            <div class="form-help">A descriptive name for this storage configuration</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="compression">Compression:</label>
+                            <select id="compression" name="compression">
+                                <option value="lz4">LZ4 (Recommended)</option>
+                                <option value="gzip">GZIP</option>
+                                <option value="zstd">ZSTD</option>
+                                <option value="off">Off</option>
+                            </select>
+                            <div class="form-help">Compression algorithm for space efficiency</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="dedup" name="dedup" style="margin-right: 8px;">
+                            Enable Deduplication
+                        </label>
+                        <div class="form-help">Remove duplicate data blocks (requires more RAM)</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectStorageType(type, config = {}) {
             // Remove previous selection
             document.querySelectorAll('.storage-card').forEach(card => {
                 card.classList.remove('selected');
@@ -757,14 +1215,165 @@
             
             // Select current card
             event.currentTarget.classList.add('selected');
-            selectedStorageConfig = config;
+            selectedStorageType = type;
             
-            // Enable next button if storage is configured
-            if (config.is_configured) {
-                updateNextButton(true, 'Continue to Validation');
-            } else {
-                updateNextButton(false, 'Storage Not Configured');
+            // Show configuration form
+            displayStorageConfiguration(type, config);
+        }
+
+        function displayStorageConfiguration(type, config = {}) {
+            const container = document.getElementById('storage-configuration');
+            container.style.display = 'block';
+            
+            let configForm = '';
+            
+            switch(type) {
+                case 'existing_pool':
+                    configForm = createExistingPoolForm();
+                    break;
+                case 'dedicated_disk':
+                    configForm = createDedicatedDiskForm();
+                    break;
+                case 'image_file':
+                    configForm = createImageFileForm();
+                    break;
+                case 'directory':
+                    configForm = createDirectoryForm();
+                    break;
             }
+            
+            const advancedForm = createAdvancedConfigForm();
+            
+            container.innerHTML = `
+                <h4 style="margin-bottom: 20px;">Configure ${getStorageTypeTitle(type)}</h4>
+                ${configForm}
+                ${advancedForm}
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-primary" onclick="validateStorageConfig()">
+                        Validate Configuration
+                    </button>
+                </div>
+            `;
+            
+            // Pre-fill form with config data
+            if (config) {
+                setTimeout(() => {
+                    Object.keys(config).forEach(key => {
+                        const input = document.querySelector(`[name="${key}"], #${key.replace('_', '-')}`);
+                        if (input) {
+                            if (input.type === 'checkbox') {
+                                input.checked = config[key];
+                            } else {
+                                input.value = config[key];
+                            }
+                        }
+                    });
+                }, 100);
+            }
+        }
+
+        async function validateStorageConfig() {
+            const configData = collectStorageConfigData();
+            if (!configData) return;
+            
+            try {
+                const response = await fetch('/api/storage/validate/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(configData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.validation_result.valid) {
+                    storageConfigData = configData;
+                    updateNextButton(true, 'Continue to Validation');
+                    
+                    // Show success message
+                    const container = document.getElementById('storage-configuration');
+                    const successDiv = document.createElement('div');
+                    successDiv.style.cssText = 'background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 15px; margin: 20px 0; color: #155724;';
+                    successDiv.innerHTML = '<strong>✓ Configuration Valid</strong><br>Storage configuration has been validated successfully.';
+                    container.appendChild(successDiv);
+                } else {
+                    const message = data.validation_result?.message || data.message || 'Invalid configuration';
+                    alert('Configuration Error: ' + message);
+                }
+            } catch (error) {
+                console.error('Storage validation failed:', error);
+                alert('Validation failed: ' + error.message);
+            }
+        }
+        
+        let selectedDisks = [];
+
+        function toggleDiskSelection(diskPath, element) {
+            if (element.classList.contains('unavailable')) return;
+            
+            if (selectedDisks.includes(diskPath)) {
+                selectedDisks = selectedDisks.filter(d => d !== diskPath);
+                element.classList.remove('selected');
+            } else {
+                selectedDisks.push(diskPath);
+                element.classList.add('selected');
+            }
+        }
+
+        function collectStorageConfigData() {
+            if (!selectedStorageType) {
+                alert('Please select a storage type first');
+                return null;
+            }
+            
+            const baseConfig = {
+                storage_type: selectedStorageType,
+                name: document.getElementById('config-name')?.value || `docker-host-storage-${Date.now()}`,
+                compression: document.getElementById('compression')?.value || 'lz4',
+                dedup: document.getElementById('dedup')?.checked || false
+            };
+            
+            switch(selectedStorageType) {
+                case 'existing_pool':
+                    const poolName = document.getElementById('existing-pool-name')?.value;
+                    if (!poolName) {
+                        alert('Please select a ZFS pool');
+                        return null;
+                    }
+                    return { ...baseConfig, existing_pool_name: poolName };
+                    
+                case 'dedicated_disk':
+                    const poolNameDisk = document.getElementById('pool-name')?.value || 'stagdb-pool';
+                    const poolType = document.getElementById('pool-type')?.value || 'single';
+                    if (selectedDisks.length === 0) {
+                        alert('Please select at least one disk');
+                        return null;
+                    }
+                    return { ...baseConfig, dedicated_disks: selectedDisks, pool_name: poolNameDisk, pool_type: poolType };
+                    
+                case 'image_file':
+                    const imagePath = document.getElementById('image-file-path')?.value;
+                    const imageSize = parseInt(document.getElementById('image-file-size')?.value);
+                    const poolNameImg = document.getElementById('pool-name')?.value || 'stagdb-pool';
+                    const sparseFile = document.getElementById('sparse-file')?.checked;
+                    if (!imagePath || !imageSize) {
+                        alert('Please provide image file path and size');
+                        return null;
+                    }
+                    return { ...baseConfig, image_file_path: imagePath, image_file_size_gb: imageSize, pool_name: poolNameImg, sparse_file: sparseFile };
+                    
+                case 'directory':
+                    const directory = document.getElementById('storage-directory')?.value;
+                    if (!directory) {
+                        alert('Please provide a storage directory');
+                        return null;
+                    }
+                    return { ...baseConfig, storage_directory: directory };
+            }
+            
+            return null;
         }
 
         async function runValidation() {
@@ -850,7 +1459,7 @@
 
         async function completeSetup() {
             try {
-                // Create Docker host entry
+                // Create Docker host entry with storage configuration
                 const response = await fetch('/api/hosts/docker-host/setup/', {
                     method: 'POST',
                     headers: {
@@ -858,7 +1467,7 @@
                         'X-CSRFToken': getCookie('csrftoken')
                     },
                     body: JSON.stringify({
-                        storage_config_id: selectedStorageConfig?.id,
+                        storage_config: storageConfigData,
                         validation_results: validationResults
                     })
                 });
@@ -881,6 +1490,8 @@
 
         function displayHostSummary() {
             const container = document.getElementById('host-summary');
+            const storageConfig = hostConfiguration.storage_config;
+            
             container.innerHTML = `
                 <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-top: 20px;">
                     <h4 style="margin-bottom: 15px;">Host Configuration Summary</h4>
@@ -890,18 +1501,37 @@
                             ${hostConfiguration.name || 'Docker Host'}
                         </div>
                         <div>
-                            <strong>Storage:</strong><br>
-                            ${selectedStorageConfig?.name || 'Default'}
+                            <strong>Storage Type:</strong><br>
+                            ${getStorageTypeTitle(selectedStorageType)}
+                        </div>
+                        <div>
+                            <strong>Storage Pool:</strong><br>
+                            ${storageConfig?.pool_name || 'N/A'}
                         </div>
                         <div>
                             <strong>Status:</strong><br>
                             <span style="color: #4CAF50;">✅ Ready</span>
                         </div>
                         <div>
+                            <strong>Datasets:</strong><br>
+                            ${hostConfiguration.dataset_creation?.success ? '✅ Created' : '⚠️ ' + (hostConfiguration.dataset_creation?.message || 'Pending')}
+                        </div>
+                        <div>
                             <strong>Databases:</strong><br>
-                            Ready to create
+                            ${hostConfiguration.can_create_databases ? 'Ready to create' : 'Setup required'}
                         </div>
                     </div>
+                    
+                    ${storageConfig ? `
+                        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+                            <h5>Storage Configuration Details</h5>
+                            <div style="background: #fff; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 0.9em;">
+                                <strong>Name:</strong> ${storageConfig.name}<br>
+                                <strong>Type:</strong> ${storageConfig.type}<br>
+                                ${storageConfig.pool_name ? `<strong>Pool:</strong> ${storageConfig.pool_name}<br>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
             `;
         }
@@ -929,7 +1559,7 @@
                 if (currentStep === 2) {
                     updateNextButton(true, 'Continue to Storage Setup');
                 } else if (currentStep === 3) {
-                    updateNextButton(selectedStorageConfig?.is_configured, 'Continue to Validation');
+                    updateNextButton(Object.keys(storageConfigData).length > 0, 'Continue to Validation');
                 }
             }
         }

@@ -175,6 +175,26 @@ class HostVM(models.Model):
         
         return blockers
     
+    def cleanup_storage_configuration(self):
+        """Clean up storage configuration resources for this host"""
+        if not self.storage_config or not self.storage_config.is_configured:
+            return {
+                'success': True,
+                'message': 'No storage configuration to clean up',
+                'storage_config': None
+            }
+        
+        from .storage_utils import StorageUtils
+        storage_utils = StorageUtils()
+        cleanup_result = storage_utils.cleanup_storage_configuration(self.storage_config)
+        
+        # Mark storage config as inactive after cleanup attempt
+        if cleanup_result['success']:
+            self.storage_config.is_active = False
+            self.storage_config.save()
+        
+        return cleanup_result
+    
     def _ensure_stagdb_parent_datasets(self):
         """Ensure StagDB parent datasets exist for this host"""
         if not self.storage_config or not self.storage_config.is_configured:
@@ -746,6 +766,12 @@ class StorageConfiguration(models.Model):
             info['pool_type'] = self.get_pool_type_display()
         
         return info
+    
+    def cleanup_resources(self):
+        """Clean up all storage resources for this configuration"""
+        from .storage_utils import StorageUtils
+        storage_utils = StorageUtils()
+        return storage_utils.cleanup_storage_configuration(self)
 
 
 class StorageQuota(models.Model):

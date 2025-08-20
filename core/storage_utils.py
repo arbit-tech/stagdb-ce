@@ -590,3 +590,150 @@ class StorageUtils:
                 'success': False,
                 'message': f"Unexpected error creating hybrid pool: {str(e)}"
             }
+    
+    def destroy_zfs_pool(self, pool_name: str, force: bool = False) -> Dict:
+        """Destroy a ZFS pool and all its datasets"""
+        try:
+            # Check if pool exists
+            success, stdout, stderr = self.execute_host_command(f"zpool list {pool_name}")
+            if not success:
+                return {
+                    'success': True,
+                    'message': f"Pool '{pool_name}' does not exist or already destroyed",
+                    'pool_name': pool_name
+                }
+            
+            # Get pool information for cleanup details
+            pool_info = {}
+            success, stdout, stderr = self.execute_host_command(f"zpool status {pool_name}")
+            if success:
+                # Extract vdev information for cleanup
+                vdevs = []
+                for line in stdout.split('\n'):
+                    line = line.strip()
+                    if line.startswith('/dev/') or line.startswith('/'):
+                        vdevs.append(line.split()[0])
+                pool_info['vdevs'] = vdevs
+            
+            # Destroy the pool
+            destroy_cmd = f"zpool destroy {pool_name}"
+            if force:
+                destroy_cmd += " -f"
+            
+            success, stdout, stderr = self.execute_host_command(destroy_cmd)
+            if not success:
+                return {
+                    'success': False,
+                    'message': f"Failed to destroy pool '{pool_name}': {stderr}",
+                    'pool_name': pool_name
+                }
+            
+            return {
+                'success': True,
+                'message': f"ZFS pool '{pool_name}' destroyed successfully",
+                'pool_name': pool_name,
+                'pool_info': pool_info
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f"Unexpected error destroying pool '{pool_name}': {str(e)}"
+            }
+    
+    def cleanup_image_file(self, image_path: str) -> Dict:
+        """Remove image file used for ZFS pool"""
+        try:
+            # Check if file exists
+            success, stdout, stderr = self.execute_host_command(f"test -f {image_path}")
+            if not success:
+                return {
+                    'success': True,
+                    'message': f"Image file '{image_path}' does not exist or already removed",
+                    'image_path': image_path
+                }
+            
+            # Remove the image file
+            success, stdout, stderr = self.execute_host_command(f"rm -f {image_path}")
+            if not success:
+                return {
+                    'success': False,
+                    'message': f"Failed to remove image file '{image_path}': {stderr}",
+                    'image_path': image_path
+                }
+            
+            return {
+                'success': True,
+                'message': f"Image file '{image_path}' removed successfully",
+                'image_path': image_path
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f"Unexpected error removing image file '{image_path}': {str(e)}"
+            }
+    
+    def cleanup_storage_configuration(self, storage_config) -> Dict:
+        """Clean up all storage resources for a storage configuration"""
+        try:
+            cleanup_results = {
+                'pool_cleanup': None,
+                'image_cleanup': None,
+                'directory_cleanup': None,
+                'errors': [],
+                'warnings': []
+            }
+            
+            if not storage_config or not storage_config.is_configured:
+                return {
+                    'success': True,
+                    'message': 'No storage configuration to clean up',
+                    'details': cleanup_results
+                }
+            
+            pool_name = storage_config.get_pool_name()
+            
+            # Destroy ZFS pool if it exists
+            if storage_config.storage_type != 'directory':
+                pool_result = self.destroy_zfs_pool(pool_name, force=True)
+                cleanup_results['pool_cleanup'] = pool_result
+                if not pool_result['success']:
+                    cleanup_results['errors'].append(f"Pool cleanup failed: {pool_result['message']}")
+            
+            # Clean up image file if used
+            if storage_config.storage_type == 'image_file' and storage_config.image_file_path:
+                image_result = self.cleanup_image_file(storage_config.image_file_path)
+                cleanup_results['image_cleanup'] = image_result
+                if not image_result['success']:
+                    cleanup_results['errors'].append(f"Image file cleanup failed: {image_result['message']}")
+            
+            # Clean up directory if used (optional - just warn)
+            if storage_config.storage_type == 'directory' and storage_config.storage_directory:
+                # For directory storage, we just note it but don't remove it automatically
+                # as it might contain other important data
+                cleanup_results['directory_cleanup'] = {
+                    'success': True,
+                    'message': f"Directory '{storage_config.storage_directory}' left intact (manual cleanup required if desired)",
+                    'directory': storage_config.storage_directory
+                }
+                cleanup_results['warnings'].append(f"Storage directory '{storage_config.storage_directory}' was not automatically removed")
+            
+            # Determine overall success
+            has_errors = len(cleanup_results['errors']) > 0
+            success = not has_errors
+            
+            return {
+                'success': success,
+                'message': f"Storage cleanup {'completed' if success else 'completed with errors'}",
+                'storage_type': storage_config.get_storage_type_display(),
+                'pool_name': pool_name,
+                'details': cleanup_results
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f"Unexpected error during storage cleanup: {str(e)}",
+                'details': cleanup_results
+            }

@@ -70,21 +70,29 @@ class DatabaseManager:
             # 3. Create ZFS dataset based on creation type
             source_db = None
             if creation_type == 'clone' and source_database_id:
-                source_db = Database.objects.get(id=source_database_id, host_vm=self.host_vm, is_active=True)
+                try:
+                    # Allow cloning from databases on any host (cross-host cloning)
+                    source_db = Database.objects.get(id=source_database_id, is_active=True)
+                except Database.DoesNotExist:
+                    return {'success': False, 'message': f'Source database with ID {source_database_id} not found or inactive'}
+                # Check if source database is on the same host
+                if source_db.host_vm.id != self.host_vm.id:
+                    return {'success': False, 'message': 'Cross-host cloning is not yet supported. Source database must be on the same host.'}
+                
                 dataset_result = self.zfs_manager.create_dataset_from_clone(
-                    source_db.zfs_dataset, sanitized_name, pool_name,
+                    source_db.zfs_dataset, sanitized_name, pool_name, database=None,
                     context={'creation_type': 'clone', 'source_database': source_db.name}
                 )
             elif creation_type == 'snapshot' and source_snapshot:
                 dataset_result = self.zfs_manager.create_dataset_from_snapshot(
-                    source_snapshot, sanitized_name, pool_name,
+                    source_snapshot, sanitized_name, pool_name, database=None,
                     context={'creation_type': 'snapshot', 'source_snapshot': source_snapshot}
                 )
             else:
                 # Default to empty dataset
                 creation_type = 'empty'
                 dataset_result = self.zfs_manager.create_dataset_from_empty(
-                    pool_name, sanitized_name,
+                    pool_name, sanitized_name, database=None,
                     context={'creation_type': 'empty'}
                 )
             
@@ -233,60 +241,100 @@ class DatabaseManager:
             logger.error(f"Error creating manual snapshot: {str(e)}")
             return {'success': False, 'message': str(e)}
     
-    def delete_database(self, database: Database) -> Dict:
+    def delete_database(self, database: Database, force: bool = False) -> Dict:
         """
-        Remove database and clean up all resources
+        Remove database and clean up all resources comprehensively
         
         Args:
             database: Database instance to delete
+            force: If True, ignore dependency checks and force deletion
             
         Returns:
-            Dict with deletion result
+            Dict with deletion result and cleanup summary
         """
         try:
             logger.info(f"Deleting database '{database.name}' (ID: {database.id})")
             
-            cleanup_errors = []
+            # 1. Check for dependent databases (clones)
+            if not force:
+                dependency_check = self._check_database_dependencies(database)
+                if not dependency_check['can_delete']:
+                    return {
+                        'success': False,
+                        'message': dependency_check['message'],
+                        'dependencies': dependency_check.get('dependencies', [])
+                    }
             
-            # 1. Stop and remove container
+            cleanup_summary = {
+                'container_cleanup': False,
+                'dataset_cleanup': False,
+                'snapshots_cleaned': [],
+                'child_databases_handled': [],
+                'errors': [],
+                'warnings': []
+            }
+            
+            # 2. Handle dependent databases if force deletion
+            if force:
+                dependent_cleanup = self._handle_dependent_databases(database)
+                cleanup_summary['child_databases_handled'] = dependent_cleanup['handled']
+                cleanup_summary['warnings'].extend(dependent_cleanup['warnings'])
+            
+            # 3. Stop and remove container with enhanced cleanup
             if database.container_name:
-                container_result = self.container_utils.remove_container(database.container_name)
-                if not container_result:
-                    cleanup_errors.append(f"Failed to remove container {database.container_name}")
+                container_result = self._comprehensive_container_cleanup(database.container_name)
+                cleanup_summary['container_cleanup'] = container_result['success']
+                if not container_result['success']:
+                    cleanup_summary['errors'].append(f"Container cleanup: {container_result['message']}")
+                cleanup_summary['warnings'].extend(container_result.get('warnings', []))
             
-            # 2. Destroy ZFS dataset and all snapshots
+            # 4. Comprehensive ZFS cleanup
             if database.zfs_dataset:
-                dataset_result = self.zfs_manager.destroy_database_dataset(database.zfs_dataset)
-                if not dataset_result['success']:
-                    cleanup_errors.append(f"Failed to destroy dataset: {dataset_result['message']}")
+                zfs_cleanup_result = self._comprehensive_zfs_cleanup(database)
+                cleanup_summary['dataset_cleanup'] = zfs_cleanup_result['success']
+                cleanup_summary['snapshots_cleaned'] = zfs_cleanup_result.get('snapshots_cleaned', [])
+                if not zfs_cleanup_result['success']:
+                    cleanup_summary['errors'].append(f"ZFS cleanup: {zfs_cleanup_result['message']}")
+                cleanup_summary['warnings'].extend(zfs_cleanup_result.get('warnings', []))
             
-            # 3. Delete database branches
-            # No longer using DatabaseBranch - ZFS operations are tracked separately
-            pass
+            # 5. Clean up ZFS operations records
+            operations_cleanup = self._cleanup_zfs_operations(database)
+            if operations_cleanup['cleaned_count'] > 0:
+                cleanup_summary['warnings'].append(f"Cleaned {operations_cleanup['cleaned_count']} ZFS operation records")
             
-            # 4. Delete database record
+            # 6. Delete database record
             database_name = database.name
             database.delete()
             
-            if cleanup_errors:
-                logger.warning(f"Database '{database_name}' deleted with cleanup warnings: {cleanup_errors}")
+            # 7. Generate comprehensive result
+            has_errors = len(cleanup_summary['errors']) > 0
+            has_warnings = len(cleanup_summary['warnings']) > 0
+            
+            if has_errors:
+                return {
+                    'success': False,
+                    'message': f'Database "{database_name}" deletion failed with errors',
+                    'cleanup_summary': cleanup_summary
+                }
+            elif has_warnings:
                 return {
                     'success': True,
                     'message': f'Database "{database_name}" deleted with warnings',
-                    'warnings': cleanup_errors
+                    'cleanup_summary': cleanup_summary
                 }
-            
-            logger.info(f"Database '{database_name}' deleted successfully")
-            return {
-                'success': True,
-                'message': f'Database "{database_name}" deleted successfully'
-            }
+            else:
+                return {
+                    'success': True,
+                    'message': f'Database "{database_name}" deleted successfully',
+                    'cleanup_summary': cleanup_summary
+                }
             
         except Exception as e:
             logger.error(f"Database deletion failed: {str(e)}")
             return {
                 'success': False,
-                'message': f'Database deletion failed: {str(e)}'
+                'message': f'Database deletion failed: {str(e)}',
+                'cleanup_summary': {'errors': [str(e)]}
             }
     
     def start_database(self, database: Database) -> Dict:
@@ -502,3 +550,248 @@ class DatabaseManager:
     def get_default_version(cls) -> str:
         """Get default PostgreSQL version"""
         return cls.DEFAULT_VERSION
+    
+    def _check_database_dependencies(self, database: Database) -> Dict:
+        """Check if database has dependent databases (clones)"""
+        try:
+            # Check for databases that were cloned from this one
+            dependent_databases = Database.objects.filter(
+                source_database=database,
+                is_active=True
+            )
+            
+            if dependent_databases.exists():
+                dependency_list = [
+                    {
+                        'id': db.id,
+                        'name': db.name,
+                        'creation_type': db.creation_type,
+                        'created_at': db.created_at.isoformat()
+                    }
+                    for db in dependent_databases
+                ]
+                
+                return {
+                    'can_delete': False,
+                    'message': f'Cannot delete database "{database.name}". {len(dependent_databases)} databases were cloned from it.',
+                    'dependencies': dependency_list
+                }
+            
+            return {
+                'can_delete': True,
+                'message': 'No dependencies found'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking database dependencies: {str(e)}")
+            return {
+                'can_delete': False,
+                'message': f'Error checking dependencies: {str(e)}'
+            }
+    
+    def _handle_dependent_databases(self, database: Database) -> Dict:
+        """Handle dependent databases when force deleting"""
+        try:
+            dependent_databases = Database.objects.filter(
+                source_database=database,
+                is_active=True
+            )
+            
+            handled = []
+            warnings = []
+            
+            for dependent_db in dependent_databases:
+                # Update source reference to None to orphan the dependent database
+                dependent_db.source_database = None
+                dependent_db.save()
+                
+                handled.append({
+                    'id': dependent_db.id,
+                    'name': dependent_db.name,
+                    'action': 'orphaned'
+                })
+                
+                warnings.append(f"Orphaned dependent database '{dependent_db.name}' (ID: {dependent_db.id})")
+            
+            return {
+                'handled': handled,
+                'warnings': warnings
+            }
+            
+        except Exception as e:
+            logger.error(f"Error handling dependent databases: {str(e)}")
+            return {
+                'handled': [],
+                'warnings': [f"Error handling dependencies: {str(e)}"]
+            }
+    
+    def _comprehensive_container_cleanup(self, container_name: str) -> Dict:
+        """Comprehensive container cleanup with detailed reporting"""
+        try:
+            warnings = []
+            
+            # Get container status first
+            status = self.container_utils.get_container_status(container_name)
+            
+            if status['status'] == 'missing':
+                return {
+                    'success': True,
+                    'message': 'Container already removed',
+                    'warnings': ['Container was already missing']
+                }
+            
+            # Stop container gracefully first
+            if status['status'] == 'running':
+                logger.info(f"Stopping container {container_name}")
+                stop_success = self.container_utils.stop_container(container_name)
+                if not stop_success:
+                    warnings.append('Failed to gracefully stop container')
+                    
+                    # Force kill if graceful stop failed
+                    logger.warning(f"Force killing container {container_name}")
+                    kill_cmd = f"docker kill {container_name}"
+                    kill_success, _, kill_stderr = self.container_utils.host_system.execute_command(kill_cmd)
+                    if not kill_success:
+                        warnings.append(f'Force kill also failed: {kill_stderr}')
+            
+            # Remove container
+            logger.info(f"Removing container {container_name}")
+            remove_success = self.container_utils.remove_container(container_name)
+            
+            if remove_success:
+                return {
+                    'success': True,
+                    'message': 'Container removed successfully',
+                    'warnings': warnings
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'Failed to remove container',
+                    'warnings': warnings
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in container cleanup: {str(e)}")
+            return {
+                'success': False,
+                'message': f'Container cleanup error: {str(e)}'
+            }
+    
+    def _comprehensive_zfs_cleanup(self, database: Database) -> Dict:
+        """Comprehensive ZFS cleanup including orphaned snapshots"""
+        try:
+            warnings = []
+            snapshots_cleaned = []
+            
+            # 1. Get all snapshots related to this dataset before destruction
+            snapshot_info = self.zfs_manager.get_snapshot_hierarchy(database.zfs_dataset)
+            if snapshot_info.get('success'):
+                related_snapshots = snapshot_info.get('snapshots', [])
+                for snapshot in related_snapshots:
+                    if snapshot.get('type') == 'current_dataset':
+                        snapshots_cleaned.append(snapshot['full_name'])
+            
+            # 2. Check for snapshots that might be used by other databases
+            protected_snapshots = self._find_protected_snapshots(database)
+            if protected_snapshots:
+                warnings.append(f"Found {len(protected_snapshots)} snapshots in use by other databases")
+            
+            # 3. Destroy the dataset (this will destroy all its snapshots)
+            logger.info(f"Destroying ZFS dataset: {database.zfs_dataset}")
+            dataset_result = self.zfs_manager.destroy_database_dataset(database.zfs_dataset)
+            
+            if not dataset_result['success']:
+                return {
+                    'success': False,
+                    'message': dataset_result['message'],
+                    'snapshots_cleaned': snapshots_cleaned,
+                    'warnings': warnings
+                }
+            
+            # 4. Clean up any orphaned snapshots that might reference this dataset
+            orphan_cleanup = self._cleanup_orphaned_snapshots(database)
+            if orphan_cleanup['cleaned_count'] > 0:
+                warnings.append(f"Cleaned {orphan_cleanup['cleaned_count']} orphaned snapshots")
+                snapshots_cleaned.extend(orphan_cleanup['snapshots'])
+            
+            return {
+                'success': True,
+                'message': 'ZFS dataset destroyed successfully',
+                'snapshots_cleaned': snapshots_cleaned,
+                'warnings': warnings
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in ZFS cleanup: {str(e)}")
+            return {
+                'success': False,
+                'message': f'ZFS cleanup error: {str(e)}'
+            }
+    
+    def _find_protected_snapshots(self, database: Database) -> List[str]:
+        """Find snapshots that are still in use by other databases"""
+        try:
+            from .models import Database as DatabaseModel
+            
+            # Find databases that might be using snapshots from this dataset
+            databases_using_snapshots = DatabaseModel.objects.filter(
+                creation_type='snapshot',
+                source_snapshot__contains=database.zfs_dataset.split('/')[-1],  # database name
+                is_active=True
+            ).exclude(id=database.id)
+            
+            protected = []
+            for db in databases_using_snapshots:
+                if db.source_snapshot:
+                    protected.append(db.source_snapshot)
+            
+            return protected
+            
+        except Exception as e:
+            logger.error(f"Error finding protected snapshots: {str(e)}")
+            return []
+    
+    def _cleanup_orphaned_snapshots(self, database: Database) -> Dict:
+        """Clean up snapshots that are no longer needed"""
+        try:
+            # For now, we rely on ZFS dataset destruction to handle snapshot cleanup
+            # This is a placeholder for more sophisticated orphan detection
+            return {
+                'cleaned_count': 0,
+                'snapshots': []
+            }
+            
+        except Exception as e:
+            logger.error(f"Error cleaning orphaned snapshots: {str(e)}")
+            return {
+                'cleaned_count': 0,
+                'snapshots': []
+            }
+    
+    def _cleanup_zfs_operations(self, database: Database) -> Dict:
+        """Clean up ZFS operation records for deleted database"""
+        try:
+            from .models import ZFSOperation
+            
+            # Find operations related to this database
+            related_operations = ZFSOperation.objects.filter(
+                initiated_by_database=database
+            )
+            
+            cleaned_count = related_operations.count()
+            
+            # Delete the operation records
+            related_operations.delete()
+            
+            logger.info(f"Cleaned {cleaned_count} ZFS operation records for database {database.name}")
+            
+            return {
+                'cleaned_count': cleaned_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Error cleaning ZFS operations: {str(e)}")
+            return {
+                'cleaned_count': 0
+            }

@@ -524,6 +524,67 @@
                 {% endif %}
             </div>
         </div>
+        
+        <!-- Database Management Section -->
+        <div class="section">
+            <h3>Database Management</h3>
+            <div class="management-section" style="background-color: #f8f9fa; border-radius: 8px; padding: 20px;">
+                <div class="management-actions" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    
+                    <!-- Cleanup Actions -->
+                    <div class="action-card" style="background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px;">
+                        <h4 style="color: #333; margin: 0 0 10px 0;">Storage Cleanup</h4>
+                        <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Clean up orphaned snapshots that are no longer referenced by any databases.</p>
+                        <button id="cleanupSnapshotsBtn" onclick="cleanupOrphanedSnapshots()" 
+                                style="background-color: #ffc107; color: #000; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                            Clean Up Snapshots
+                        </button>
+                    </div>
+                    
+                    <!-- Danger Zone -->
+                    <div class="action-card" style="background: #fff5f5; border: 1px solid #fbb6ce; border-radius: 6px; padding: 20px;">
+                        <h4 style="color: #e53e3e; margin: 0 0 10px 0;">Danger Zone</h4>
+                        <p style="color: #666; margin-bottom: 15px; font-size: 14px;">Permanently delete this database and all associated resources. This action cannot be undone.</p>
+                        <div style="margin-bottom: 10px;">
+                            <strong style="color: #e53e3e;">Will be deleted:</strong>
+                            <ul style="margin: 5px 0 0 20px; color: #666; font-size: 14px;">
+                                <li>Database container: {{ database.container_name }}</li>
+                                <li>ZFS dataset: {{ database.zfs_dataset }}</li>
+                                <li>All snapshots of this database</li>
+                                <li>All ZFS operation records</li>
+                            </ul>
+                        </div>
+                        <button id="deleteDatabaseBtn" onclick="checkDatabaseDependencies()" 
+                                style="background-color: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                            Delete Database
+                        </button>
+                    </div>
+                    
+                </div>
+                
+                <!-- Database Information -->
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #dee2e6;">
+                    <h5 style="color: #333; margin: 0 0 10px 0;">Database Dependencies</h5>
+                    {% if database.get_child_databases %}
+                        <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                            <strong style="color: #856404;">⚠️ Warning:</strong> This database has {{ database.get_child_databases.count }} databases cloned from it.
+                            Deletion will require force deletion and will orphan the dependent databases.
+                        </div>
+                    {% endif %}
+                    
+                    {% if database.source_database %}
+                        <div style="background: #e7f3ff; border: 1px solid #b3d7ff; border-radius: 4px; padding: 10px;">
+                            <strong style="color: #0056b3;">ℹ️ Source:</strong> This database was {{ database.get_creation_info.type|lower }} from 
+                            {% if database.source_database %}
+                                <a href="/databases/{{ database.source_database.id }}/" style="color: #0056b3;">{{ database.source_database.name }}</a>
+                            {% elif database.source_snapshot %}
+                                snapshot: <code style="background: #f8f9fa; padding: 2px 4px;">{{ database.source_snapshot }}</code>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -610,6 +671,178 @@
                 button.textContent = originalText;
                 button.style.backgroundColor = '#007bff';
             }, 2000);
+        }
+        
+        // Database management functions
+        function checkDatabaseDependencies() {
+            fetch(`/api/databases/{{ database.id }}/dependencies/`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showDeleteConfirmation(data.dependency_check, data.cleanup_preview);
+                } else {
+                    alert('Error checking dependencies: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error checking database dependencies');
+            });
+        }
+        
+        function showDeleteConfirmation(dependencyCheck, cleanupPreview) {
+            let confirmMessage = `Are you sure you want to delete database "{{ database.name }}"?\n\n`;
+            
+            confirmMessage += "This will cleanup:\n";
+            cleanupPreview.estimated_cleanup_items.forEach(item => {
+                confirmMessage += `• ${item}\n`;
+            });
+            
+            if (!dependencyCheck.can_delete) {
+                confirmMessage += "\n⚠️ WARNING: This database has dependent databases:\n";
+                dependencyCheck.dependencies.forEach(dep => {
+                    confirmMessage += `• ${dep.name} (${dep.creation_type})\n`;
+                });
+                confirmMessage += "\nYou can force delete, but this will orphan the dependent databases.\n";
+                confirmMessage += "\nChoose:\n- OK to force delete\n- Cancel to abort";
+                
+                if (confirm(confirmMessage)) {
+                    deleteDatabase(true); // Force delete
+                }
+            } else {
+                confirmMessage += "\n⚠️ This action cannot be undone!";
+                if (confirm(confirmMessage)) {
+                    deleteDatabase(false);
+                }
+            }
+        }
+        
+        function deleteDatabase(force = false) {
+            const deleteBtn = document.getElementById('deleteDatabaseBtn');
+            const originalText = deleteBtn.textContent;
+            
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = 'Deleting...';
+            
+            fetch(`/api/databases/{{ database.id }}/delete/`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ force: force })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let message = data.message;
+                    
+                    if (data.cleanup_summary) {
+                        const summary = data.cleanup_summary;
+                        message += '\n\nCleanup Summary:';
+                        
+                        if (summary.snapshots_cleaned && summary.snapshots_cleaned.length > 0) {
+                            message += `\n• ${summary.snapshots_cleaned.length} snapshots cleaned`;
+                        }
+                        
+                        if (summary.child_databases_handled && summary.child_databases_handled.length > 0) {
+                            message += `\n• ${summary.child_databases_handled.length} dependent databases orphaned`;
+                        }
+                        
+                        if (summary.warnings && summary.warnings.length > 0) {
+                            message += '\n\nWarnings:';
+                            summary.warnings.forEach(warning => {
+                                message += `\n• ${warning}`;
+                            });
+                        }
+                    }
+                    
+                    alert(message);
+                    // Redirect back to host detail page
+                    window.location.href = '/hosts/{{ database.host_vm.id }}/';
+                } else {
+                    alert('Delete failed: ' + data.message);
+                    deleteBtn.disabled = false;
+                    deleteBtn.textContent = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting database');
+                deleteBtn.disabled = false;
+                deleteBtn.textContent = originalText;
+            });
+        }
+        
+        function cleanupOrphanedSnapshots() {
+            const cleanupBtn = document.getElementById('cleanupSnapshotsBtn');
+            const originalText = cleanupBtn.textContent;
+            
+            if (!confirm('Clean up orphaned snapshots that are no longer referenced by any databases?\n\nThis will only remove snapshots that are not needed.')) {
+                return;
+            }
+            
+            cleanupBtn.disabled = true;
+            cleanupBtn.textContent = 'Cleaning...';
+            
+            fetch('/api/databases/cleanup-snapshots/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ host_id: {{ database.host_vm.id }} })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let message = data.message;
+                    
+                    if (data.cleanup_details) {
+                        const details = data.cleanup_details;
+                        message += `\n\nDetails:`;
+                        message += `\n• Total snapshots found: ${details.total_snapshots}`;
+                        message += `\n• Referenced snapshots: ${details.referenced_snapshots}`;
+                        message += `\n• Orphaned snapshots found: ${details.orphaned_found}`;
+                        message += `\n• Snapshots cleaned: ${details.cleaned_snapshots.length}`;
+                        
+                        if (details.errors && details.errors.length > 0) {
+                            message += '\n\nErrors:';
+                            details.errors.forEach(error => {
+                                message += `\n• ${error}`;
+                            });
+                        }
+                    }
+                    
+                    alert(message);
+                    // Refresh the page to update snapshot counts
+                    window.location.reload();
+                } else {
+                    alert('Cleanup failed: ' + data.message);
+                }
+                
+                cleanupBtn.disabled = false;
+                cleanupBtn.textContent = originalText;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error cleaning up snapshots');
+                cleanupBtn.disabled = false;
+                cleanupBtn.textContent = originalText;
+            });
+        }
+        
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
         }
     </script>
 </body>

@@ -63,13 +63,16 @@ def list_databases(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_database(request):
-    """Create a new PostgreSQL database"""
+    """Create a new PostgreSQL database with branching support"""
     try:
         # Extract parameters
         name = request.data.get('name', '').strip()
         host_id = request.data.get('host_id')
         pg_version = request.data.get('db_version', '15')
         description = request.data.get('description', '').strip()
+        creation_type = request.data.get('creation_type', 'empty')
+        source_database_id = request.data.get('source_database_id')
+        source_snapshot = request.data.get('source_snapshot', '').strip()
         
         # Validate required parameters
         if not name:
@@ -83,6 +86,37 @@ def create_database(request):
                 'success': False,
                 'message': 'Host ID is required'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate creation type
+        if creation_type not in ['empty', 'clone', 'snapshot']:
+            return Response({
+                'success': False,
+                'message': 'Invalid creation type. Must be empty, clone, or snapshot'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate creation type specific requirements
+        if creation_type == 'clone':
+            if not source_database_id:
+                return Response({
+                    'success': False,
+                    'message': 'Source database ID is required for cloning'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate source database exists
+            try:
+                source_db = Database.objects.get(id=source_database_id, is_active=True)
+            except Database.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': 'Source database not found or inactive'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif creation_type == 'snapshot':
+            if not source_snapshot:
+                return Response({
+                    'success': False,
+                    'message': 'Source snapshot is required for restoration'
+                }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get and validate host
         host = get_object_or_404(HostVM, id=host_id, is_active=True)
@@ -100,11 +134,14 @@ def create_database(request):
         result = db_manager.create_database(
             name=name,
             pg_version=pg_version,
-            description=description
+            description=description,
+            creation_type=creation_type,
+            source_database_id=source_database_id,
+            source_snapshot=source_snapshot
         )
         
         if result['success']:
-            logger.info(f"Database '{name}' created successfully by user")
+            logger.info(f"Database '{name}' created successfully using {creation_type} method")
             return Response(result, status=status.HTTP_201_CREATED)
         else:
             logger.warning(f"Database creation failed: {result['message']}")
@@ -188,20 +225,39 @@ def database_detail(request, database_id):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_database(request, database_id):
-    """Delete database and cleanup resources"""
+    """Delete database and cleanup resources with comprehensive cleanup options"""
     try:
         database = get_object_or_404(Database, id=database_id, is_active=True)
         db_name = database.name
         
+        # Check for force deletion parameter
+        force = request.data.get('force', False) if request.data else False
+        
         # Create database manager and delete database
         db_manager = DatabaseManager(database.host_vm)
-        result = db_manager.delete_database(database)
+        result = db_manager.delete_database(database, force=force)
+        
+        # Handle dependency errors with detailed information
+        if not result['success'] and 'dependencies' in result:
+            return Response({
+                'success': False,
+                'message': result['message'],
+                'dependencies': result['dependencies'],
+                'can_force': True,
+                'force_warning': 'Force deletion will orphan dependent databases. This action cannot be undone.'
+            }, status=status.HTTP_409_CONFLICT)
         
         if result['success']:
             logger.info(f"Database '{db_name}' deleted successfully")
-            return Response(result)
+            status_code = status.HTTP_200_OK
+            
+            # Add cleanup summary to response
+            if 'cleanup_summary' in result:
+                result['cleanup_performed'] = True
+                
+            return Response(result, status=status_code)
         else:
-            logger.warning(f"Database deletion had issues: {result['message']}")
+            logger.warning(f"Database deletion failed: {result['message']}")
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
             
     except Exception as e:
@@ -209,6 +265,59 @@ def delete_database(request, database_id):
         return Response({
             'success': False,
             'message': f'Database deletion failed: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def check_database_dependencies(request, database_id):
+    """Check what would be affected by deleting a database"""
+    try:
+        database = get_object_or_404(Database, id=database_id, is_active=True)
+        
+        # Create database manager and check dependencies
+        db_manager = DatabaseManager(database.host_vm)
+        dependency_check = db_manager._check_database_dependencies(database)
+        
+        # Get additional cleanup preview
+        cleanup_preview = {
+            'container_name': database.container_name,
+            'zfs_dataset': database.zfs_dataset,
+            'estimated_snapshots': 0,
+            'estimated_cleanup_items': []
+        }
+        
+        # Get snapshot count
+        try:
+            snapshot_info = database.get_snapshot_hierarchy()
+            if snapshot_info.get('success'):
+                cleanup_preview['estimated_snapshots'] = len(snapshot_info.get('snapshots', []))
+        except Exception:
+            pass
+        
+        cleanup_preview['estimated_cleanup_items'] = [
+            f"Container: {database.container_name}",
+            f"ZFS Dataset: {database.zfs_dataset}",
+            f"Estimated {cleanup_preview['estimated_snapshots']} snapshots",
+            "All ZFS operation records"
+        ]
+        
+        return Response({
+            'success': True,
+            'database': {
+                'id': database.id,
+                'name': database.name,
+                'creation_type': database.creation_type
+            },
+            'dependency_check': dependency_check,
+            'cleanup_preview': cleanup_preview
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking database dependencies: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Failed to check dependencies: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -497,6 +606,103 @@ def pull_postgres_image(request):
         return Response({
             'success': False,
             'message': f'Failed to pull image: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_available_snapshots(request):
+    """List all available ZFS snapshots for restoration"""
+    try:
+        host_id = request.GET.get('host_id')
+        
+        if not host_id:
+            return Response({
+                'success': False,
+                'message': 'Host ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        host = get_object_or_404(HostVM, id=host_id, is_active=True)
+        
+        # Get ZFS dataset manager
+        from .zfs_dataset import ZFSDatasetManager
+        zfs_manager = ZFSDatasetManager(host)
+        
+        # Get pool name from storage config
+        pool_name = None
+        if host.storage_config and host.storage_config.is_configured:
+            pool_name = host.storage_config.get_pool_name()
+        
+        # List available snapshots
+        result = zfs_manager.list_available_snapshots(pool_name)
+        
+        if result['success']:
+            return Response({
+                'success': True,
+                'snapshots': result['snapshots'],
+                'count': result['count']
+            })
+        else:
+            return Response({
+                'success': False,
+                'message': result['message']
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Error listing snapshots: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Failed to list snapshots: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cleanup_orphaned_snapshots(request):
+    """Clean up orphaned snapshots that are no longer referenced"""
+    try:
+        host_id = request.data.get('host_id')
+        
+        if not host_id:
+            return Response({
+                'success': False,
+                'message': 'Host ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        host = get_object_or_404(HostVM, id=host_id, is_active=True)
+        
+        # Get ZFS dataset manager
+        from .zfs_dataset import ZFSDatasetManager
+        zfs_manager = ZFSDatasetManager(host)
+        
+        # Get pool name from storage config
+        pool_name = None
+        if host.storage_config and host.storage_config.is_configured:
+            pool_name = host.storage_config.get_pool_name()
+        
+        # Clean up orphaned snapshots
+        result = zfs_manager.cleanup_orphaned_snapshots(pool_name)
+        
+        if result['success']:
+            return Response({
+                'success': True,
+                'message': result['message'],
+                'cleanup_details': {
+                    'cleaned_snapshots': result.get('cleaned_snapshots', []),
+                    'total_snapshots': result.get('total_snapshots', 0),
+                    'referenced_snapshots': result.get('referenced_snapshots', 0),
+                    'orphaned_found': result.get('orphaned_found', 0),
+                    'errors': result.get('errors', [])
+                }
+            })
+        else:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Error cleaning orphaned snapshots: {str(e)}")
+        return Response({
+            'success': False,
+            'message': f'Failed to clean orphaned snapshots: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

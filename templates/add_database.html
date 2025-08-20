@@ -176,6 +176,36 @@
         {% else %}
             <form id="createDatabaseForm">
                 {% csrf_token %}
+                
+                <!-- Creation Type Selection -->
+                <div class="form-group">
+                    <label for="creation_type">Database Creation Type *</label>
+                    <select id="creation_type" name="creation_type" required>
+                        <option value="empty">Empty Database - Start with a fresh database</option>
+                        <option value="clone">Clone from Existing - Copy an existing database</option>
+                        <option value="snapshot">Restore from Snapshot - Restore from a ZFS snapshot</option>
+                    </select>
+                    <div class="help-text">Choose how to create your new database</div>
+                </div>
+                
+                <!-- Source Database Selection (for cloning) -->
+                <div class="form-group" id="source_database_group" style="display: none;">
+                    <label for="source_database">Source Database *</label>
+                    <select id="source_database" name="source_database_id">
+                        <option value="">Loading databases...</option>
+                    </select>
+                    <div class="help-text">Select the database to clone from</div>
+                </div>
+                
+                <!-- Snapshot Selection (for restore) -->
+                <div class="form-group" id="source_snapshot_group" style="display: none;">
+                    <label for="source_snapshot">Source Snapshot *</label>
+                    <select id="source_snapshot" name="source_snapshot">
+                        <option value="">Loading snapshots...</option>
+                    </select>
+                    <div class="help-text">Select the snapshot to restore from</div>
+                </div>
+                
                 <div class="form-group">
                     <label for="database_name">Database Name *</label>
                     <input type="text" id="database_name" name="name" required 
@@ -185,12 +215,12 @@
                     <div class="help-text">3-63 characters, letters, numbers, and underscore only</div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" id="postgres_version_group">
                     <label for="postgres_version">PostgreSQL Version</label>
                     <select id="postgres_version" name="db_version">
                         <option value="">Loading versions...</option>
                     </select>
-                    <div class="help-text">Select the PostgreSQL version for your database</div>
+                    <div class="help-text" id="version_help_text">Select the PostgreSQL version for your database</div>
                     <div id="image-status" class="help-text" style="display: none; margin-top: 5px;"></div>
                 </div>
 
@@ -311,7 +341,10 @@
                 name: formData.get('name'),
                 host_id: {{ host.id }},
                 db_version: formData.get('db_version'),
-                description: formData.get('description')
+                description: formData.get('description'),
+                creation_type: formData.get('creation_type'),
+                source_database_id: formData.get('source_database_id'),
+                source_snapshot: formData.get('source_snapshot')
             };
             
             // Show loading state
@@ -325,6 +358,19 @@
             
             if (imageStatus && imageStatus.textContent.includes('will be downloaded')) {
                 document.getElementById('loading').textContent = 'Downloading Docker image and creating database...';
+            }
+            
+            // Validate required fields
+            if (!data.name) {
+                throw new Error('Database name is required');
+            }
+            
+            if (data.creation_type === 'clone' && !data.source_database_id) {
+                throw new Error('Source database is required for cloning');
+            }
+            
+            if (data.creation_type === 'snapshot' && !data.source_snapshot) {
+                throw new Error('Source snapshot is required for restoration');
             }
             
             // Validate name first
@@ -405,6 +451,102 @@
                 console.error('Name validation error:', error);
             });
         });
+        
+        // Handle creation type changes
+        document.getElementById('creation_type').addEventListener('change', function() {
+            const creationType = this.value;
+            const sourceDbGroup = document.getElementById('source_database_group');
+            const sourceSnapshotGroup = document.getElementById('source_snapshot_group');
+            const versionGroup = document.getElementById('postgres_version_group');
+            const versionHelpText = document.getElementById('version_help_text');
+            
+            // Hide all conditional groups first
+            sourceDbGroup.style.display = 'none';
+            sourceSnapshotGroup.style.display = 'none';
+            
+            if (creationType === 'clone') {
+                sourceDbGroup.style.display = 'block';
+                loadAvailableDatabases();
+                versionHelpText.textContent = 'Version will match the source database';
+                document.getElementById('postgres_version').disabled = true;
+            } else if (creationType === 'snapshot') {
+                sourceSnapshotGroup.style.display = 'block';
+                loadAvailableSnapshots();
+                versionHelpText.textContent = 'Version will match the snapshot source';
+                document.getElementById('postgres_version').disabled = true;
+            } else {
+                versionHelpText.textContent = 'Select the PostgreSQL version for your database';
+                document.getElementById('postgres_version').disabled = false;
+            }
+        });
+        
+        // Load available databases for cloning
+        function loadAvailableDatabases() {
+            const sourceDbSelect = document.getElementById('source_database');
+            sourceDbSelect.innerHTML = '<option value="">Loading databases...</option>';
+            
+            fetch('/api/databases/list/', {
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                sourceDbSelect.innerHTML = '<option value="">Select a database to clone</option>';
+                
+                if (data.success && data.databases) {
+                    data.databases.forEach(db => {
+                        const option = document.createElement('option');
+                        option.value = db.id;
+                        option.textContent = `${db.name} (${db.host.name}) - PostgreSQL ${db.version}`;
+                        sourceDbSelect.appendChild(option);
+                    });
+                }
+                
+                if (data.databases.length === 0) {
+                    sourceDbSelect.innerHTML = '<option value="">No databases available to clone</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading databases:', error);
+                sourceDbSelect.innerHTML = '<option value="">Error loading databases</option>';
+            });
+        }
+        
+        // Load available snapshots for restoration
+        function loadAvailableSnapshots() {
+            const sourceSnapshotSelect = document.getElementById('source_snapshot');
+            sourceSnapshotSelect.innerHTML = '<option value="">Loading snapshots...</option>';
+            
+            fetch(`/api/databases/snapshots/?host_id={{ host.id }}`, {
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                sourceSnapshotSelect.innerHTML = '<option value="">Select a snapshot to restore</option>';
+                
+                if (data.success && data.snapshots) {
+                    data.snapshots.forEach(snapshot => {
+                        const option = document.createElement('option');
+                        option.value = snapshot.full_name;
+                        option.textContent = `${snapshot.dataset} @ ${snapshot.snapshot_name} (${snapshot.creation_time})`;
+                        sourceSnapshotSelect.appendChild(option);
+                    });
+                }
+                
+                if (data.snapshots.length === 0) {
+                    sourceSnapshotSelect.innerHTML = '<option value="">No snapshots available to restore</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading snapshots:', error);
+                sourceSnapshotSelect.innerHTML = '<option value="">Error loading snapshots</option>';
+            });
+        }
     </script>
 </body>
 </html>

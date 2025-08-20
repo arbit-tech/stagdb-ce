@@ -37,10 +37,11 @@ urlpatterns = [
     path('api/hosts/<int:host_id>/removal-check/', views.host_removal_check, name='host_removal_check'),
     
     # Database management URLs
-    path('api/databases/', database_views.list_databases, name='list_databases'),
+    path('api/databases/list/', database_views.list_databases, name='list_databases'),
     path('api/databases/create/', database_views.create_database, name='create_database'),
     path('api/databases/<int:database_id>/', database_views.database_detail, name='database_detail'),
     path('api/databases/<int:database_id>/delete/', database_views.delete_database, name='delete_database'),
+    path('api/databases/<int:database_id>/dependencies/', database_views.check_database_dependencies, name='check_database_dependencies'),
     
     # Database lifecycle management
     path('api/databases/<int:database_id>/start/', database_views.start_database, name='start_database'),
@@ -58,6 +59,8 @@ urlpatterns = [
     path('api/databases/check-image/', database_views.check_image_availability, name='check_image_availability'),
     path('api/databases/pull-image/', database_views.pull_postgres_image, name='pull_postgres_image'),
     path('api/databases/check-ports/', database_views.check_port_availability, name='check_port_availability'),
+    path('api/databases/snapshots/', database_views.list_available_snapshots, name='list_available_snapshots'),
+    path('api/databases/cleanup-snapshots/', database_views.cleanup_orphaned_snapshots, name='cleanup_orphaned_snapshots'),
     
     # Storage configuration URLs
     path('api/storage/options/', storage_views.storage_options, name='storage_options'),

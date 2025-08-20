@@ -1,7 +1,7 @@
 import os
 import logging
 import time
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List
 from django.utils import timezone
 from .storage_utils import StorageUtils
 
@@ -762,15 +762,148 @@ class ZFSDatasetManager:
             logger.error(f"Error creating snapshot {dataset_path}@{snapshot_name}: {str(e)}")
             return {'success': False, 'message': str(e)}
     
+    def _check_for_clones(self, dataset_path: str) -> Dict:
+        """Check if dataset has any clones that would prevent destruction"""
+        try:
+            # Get list of all datasets and check for clones
+            list_cmd = "zfs list -H -o name,origin"
+            success, stdout, stderr = self.storage_utils.execute_host_command(list_cmd)
+            
+            if not success:
+                return {'has_clones': False, 'clones': []}
+            
+            clones = []
+            if stdout.strip():
+                for line in stdout.strip().split('\n'):
+                    parts = line.split('\t')
+                    if len(parts) >= 2:
+                        dataset_name = parts[0]
+                        origin = parts[1]
+                        
+                        # Check if this dataset is a clone of our dataset's snapshots
+                        if origin != '-' and dataset_path in origin:
+                            clones.append({
+                                'clone_name': dataset_name,
+                                'origin_snapshot': origin
+                            })
+            
+            return {
+                'has_clones': len(clones) > 0,
+                'clones': clones
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking for clones: {str(e)}")
+            return {'has_clones': False, 'clones': []}
+    
+    def _extract_clone_info_from_error(self, error_message: str) -> List[str]:
+        """Extract clone information from ZFS error messages"""
+        try:
+            # Parse common ZFS error patterns for clone information
+            clones = []
+            lines = error_message.split('\n')
+            
+            for line in lines:
+                if 'clone' in line.lower() and ('/' in line or '@' in line):
+                    # Try to extract dataset names from error messages
+                    import re
+                    dataset_pattern = r'[a-zA-Z0-9_\-\/]+(?:@[a-zA-Z0-9_\-]+)?'
+                    matches = re.findall(dataset_pattern, line)
+                    clones.extend(matches)
+            
+            return clones
+            
+        except Exception as e:
+            logger.error(f"Error parsing clone info from error: {str(e)}")
+            return []
+    
+    def cleanup_orphaned_snapshots(self, pool_name: str = None) -> Dict:
+        """Clean up snapshots that are no longer referenced by any databases"""
+        try:
+            from .models import Database, ZFSOperation
+            
+            # Get all snapshots in the system
+            if pool_name:
+                # Use recursive flag to get all snapshots under the databases directory
+                cmd = f"zfs list -t snapshot -H -o name -r {pool_name}/stagdb/databases"
+            else:
+                cmd = "zfs list -t snapshot -H -o name"
+            
+            success, stdout, stderr = self.storage_utils.execute_host_command(cmd)
+            
+            if not success:
+                return {
+                    'success': False,
+                    'message': f'Failed to list snapshots: {stderr}'
+                }
+            
+            all_snapshots = []
+            if stdout.strip():
+                for line in stdout.strip().split('\n'):
+                    snapshot_name = line.strip()
+                    if 'stagdb' in snapshot_name and '@' in snapshot_name:
+                        all_snapshots.append(snapshot_name)
+            
+            # Find snapshots that are still referenced
+            referenced_snapshots = set()
+            
+            # Check database source_snapshot fields
+            for db in Database.objects.filter(is_active=True, creation_type='snapshot'):
+                if db.source_snapshot:
+                    referenced_snapshots.add(db.source_snapshot)
+            
+            # Check ZFS operations that reference snapshots
+            for op in ZFSOperation.objects.filter(operation_type__in=['clone', 'snapshot']):
+                if op.source_dataset and '@' in op.source_dataset:
+                    referenced_snapshots.add(op.source_dataset)
+                if op.snapshot_name and op.source_dataset:
+                    full_snapshot = f"{op.source_dataset}@{op.snapshot_name}"
+                    referenced_snapshots.add(full_snapshot)
+            
+            # Find orphaned snapshots (excluding root snapshots which are needed for future branching)
+            orphaned_snapshots = []
+            for snapshot in all_snapshots:
+                if (snapshot not in referenced_snapshots and 
+                    not snapshot.endswith('@root')):  # Keep root snapshots
+                    orphaned_snapshots.append(snapshot)
+            
+            # Clean up orphaned snapshots
+            cleaned_snapshots = []
+            errors = []
+            
+            for snapshot in orphaned_snapshots:
+                destroy_cmd = f"zfs destroy {snapshot}"
+                destroy_success, destroy_stdout, destroy_stderr = self.storage_utils.execute_host_command(destroy_cmd)
+                
+                if destroy_success:
+                    cleaned_snapshots.append(snapshot)
+                    logger.info(f"Cleaned orphaned snapshot: {snapshot}")
+                else:
+                    errors.append(f"Failed to clean {snapshot}: {destroy_stderr}")
+                    logger.warning(f"Failed to clean orphaned snapshot {snapshot}: {destroy_stderr}")
+            
+            return {
+                'success': True,
+                'message': f'Cleaned {len(cleaned_snapshots)} orphaned snapshots',
+                'cleaned_snapshots': cleaned_snapshots,
+                'total_snapshots': len(all_snapshots),
+                'referenced_snapshots': len(referenced_snapshots),
+                'orphaned_found': len(orphaned_snapshots),
+                'errors': errors
+            }
+            
+        except Exception as e:
+            logger.error(f"Error cleaning orphaned snapshots: {str(e)}")
+            return {
+                'success': False,
+                'message': f'Orphaned snapshot cleanup error: {str(e)}'
+            }
+    
     def list_available_snapshots(self, pool_name: str = None) -> Dict:
         """List all available snapshots for cloning"""
         try:
-            if pool_name:
-                # List snapshots for specific pool
-                cmd = f"zfs list -t snapshot -H -o name,creation,used,referenced -s creation {pool_name}/stagdb"
-            else:
-                # List all snapshots in stagdb datasets
-                cmd = "zfs list -t snapshot -H -o name,creation,used,referenced -s creation"
+            # Always list all snapshots and filter, as ZFS doesn't recurse by default
+            cmd = "zfs list -t snapshot -H -o name,creation,used,referenced -s creation"
             
             success, stdout, stderr = self.storage_utils.execute_host_command(cmd)
             
@@ -781,24 +914,31 @@ class ZFSDatasetManager:
             if stdout.strip():
                 for line in stdout.strip().split('\n'):
                     parts = line.split('\t')
-                    if len(parts) >= 4 and 'stagdb' in parts[0]:
+                    if len(parts) >= 4:
                         snapshot_name = parts[0]
                         creation_time = parts[1]
                         used_space = parts[2]
                         referenced = parts[3]
                         
-                        if '@' in snapshot_name:
+                        # Filter for stagdb snapshots and optionally by pool
+                        is_stagdb_snapshot = 'stagdb' in snapshot_name and '@' in snapshot_name
+                        if pool_name:
+                            is_stagdb_snapshot = is_stagdb_snapshot and snapshot_name.startswith(f'{pool_name}/stagdb')
+                        
+                        if is_stagdb_snapshot and '@' in snapshot_name:
                             dataset_part, snap_part = snapshot_name.split('@', 1)
-                            snapshots.append({
-                                'full_name': snapshot_name,
-                                'dataset': dataset_part,
-                                'snapshot_name': snap_part,
-                                'creation_time': creation_time,
-                                'used_space': used_space,
-                                'referenced': referenced,
-                                'used_space_human': self._format_size(used_space),
-                                'referenced_human': self._format_size(referenced)
-                            })
+                            # Only include database snapshots (not root snapshots for cloning)
+                            if '/databases/' in dataset_part and snap_part != 'root':
+                                snapshots.append({
+                                    'full_name': snapshot_name,
+                                    'dataset': dataset_part,
+                                    'snapshot_name': snap_part,
+                                    'creation_time': creation_time,
+                                    'used_space': used_space,
+                                    'referenced': referenced,
+                                    'used_space_human': self._format_size(used_space),
+                                    'referenced_human': self._format_size(referenced)
+                                })
             
             return {
                 'success': True,

@@ -498,8 +498,9 @@ class DatabaseManager:
             return None
     
     def _generate_secure_password(self, length: int = 32) -> str:
-        """Generate cryptographically secure password"""
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        """Generate cryptographically secure password using only alphanumeric characters"""
+        # Use only alphanumeric characters to avoid shell escaping and connection string issues
+        alphabet = string.ascii_letters + string.digits  # A-Z, a-z, 0-9
         password = ''.join(secrets.choice(alphabet) for _ in range(length))
         return password
     

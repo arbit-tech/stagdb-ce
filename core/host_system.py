@@ -37,9 +37,18 @@ class HostSystemManager:
     def execute_command(self, command: str, timeout: int = 30, check_return_code: bool = True) -> Tuple[bool, str, str]:
         """Execute command with error handling"""
         try:
-            logger.info(f"Executing command: {command}")
+            # If running in container with host access, use nsenter to execute on host
+            if self.is_in_container and os.path.exists('/host/proc'):
+                # Use nsenter to execute command in host namespace
+                nsenter_cmd = f"nsenter --target 1 --mount --uts --ipc --net --pid -- {command}"
+                logger.info(f"Executing command on host via nsenter: {command}")
+                actual_command = nsenter_cmd
+            else:
+                logger.info(f"Executing command locally: {command}")
+                actual_command = command
+                
             result = subprocess.run(
-                command,
+                actual_command,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -217,6 +226,24 @@ class HostSystemManager:
             info['zfs_pools'] = pools
         else:
             info['zfs_pools_error'] = stderr
+            
+        # Get devices used by each pool
+        pool_devices = {}
+        if 'zfs_pools' in info:
+            for pool in info['zfs_pools']:
+                pool_name = pool['name']
+                success, stdout, stderr = self.execute_host_command(f"zpool status {pool_name} | awk '/^\t/ {{print $1}}' | grep -v '^[[:space:]]*$' | grep -v '{pool_name}' | head -20")
+                if success and stdout.strip():
+                    devices = []
+                    for line in stdout.split('\n'):
+                        device = line.strip()
+                        if device and not device.startswith('mirror') and not device.startswith('raidz'):
+                            # Handle both /dev/sdb and sdb formats
+                            if not device.startswith('/dev/'):
+                                device = f'/dev/{device}'
+                            devices.append(device)
+                    pool_devices[pool_name] = devices
+            info['pool_devices'] = pool_devices
         
         return info
     

@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Database Host - StagDB</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #2d3748;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .breadcrumb {
+            color: #718096;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .breadcrumb a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            color: #cbd5e0;
+            font-size: 14px;
+        }
+        .step.active {
+            color: #667eea;
+            font-weight: 600;
+        }
+        .step.completed {
+            color: #48bb78;
+        }
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #4a5568;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .step.active .step-number {
+            background: #667eea;
+            color: white;
+        }
+        .step.completed .step-number {
+            background: #48bb78;
+            color: white;
+        }
+        .step:not(:last-child)::after {
+            content: '';
+            width: 40px;
+            height: 2px;
+            background: #e2e8f0;
+            margin: 0 20px;
+        }
+        .step.completed:not(:last-child)::after {
+            background: #48bb78;
+        }
+        .wizard-content {
+            min-height: 400px;
+        }
+        .host-type-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .host-option {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        .host-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+        .host-option.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        .host-option-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+        }
+        .host-option h3 {
+            margin: 0 0 10px 0;
+            color: #2d3748;
+            font-size: 18px;
+        }
+        .host-option p {
+            margin: 0;
+            color: #718096;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .form-section {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        .form-section h3 {
+            margin: 0 0 20px 0;
+            color: #2d3748;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        /* Collapsible content styles */
+        .collapsible-content {
+            max-height: 1000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            opacity: 1;
+        }
+        .collapsible-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin-bottom: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .collapsible-header:hover {
+            background-color: rgba(102, 126, 234, 0.05);
+            border-radius: 8px;
+            margin: -6px -12px;
+            padding: 18px 12px !important;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+            font-size: 14px;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .wizard-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .validation-status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .validation-status.success {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            color: #2f855a;
+        }
+        .validation-status.warning {
+            background: #fffbf0;
+            border: 1px solid #fbd38d;
+            color: #c05621;
+        }
+        .validation-status.error {
+            background: #fef5f5;
+            border: 1px solid #fca5a5;
+            color: #c53030;
+        }
+        .validation-details {
+            margin-top: 15px;
+        }
+        .validation-check {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .check-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .check-status.pass {
+            background: #48bb78;
+            color: white;
+        }
+        .check-status.warning {
+            background: #ed8936;
+            color: white;
+        }
+        .check-status.fail {
+            background: #e53e3e;
+            color: white;
+        }
+        .remediation-steps {
+            background: #fffbf0;
+            border: 1px solid #fbd38d;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        .remediation-steps h4 {
+            margin: 0 0 15px 0;
+            color: #c05621;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .remediation-steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .remediation-steps li {
+            margin-bottom: 8px;
+            color: #744210;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .hidden {
+            display: none;
+        }
+        .loading {
+            display: inline-flex;
+            align-items: center;
+        }
+        .loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            margin-left: 8px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .auth-method-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .auth-option {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .auth-option:hover {
+            border-color: #667eea;
+        }
+        .auth-option.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        .info-box {
+            background: #ebf8ff;
+            border: 1px solid #90cdf4;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #2c5282;
+        }
+        .info-box-icon {
+            margin-right: 8px;
+        }
+        .pool-type-option {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pool-type-option:hover {
+            border-color: #667eea;
+        }
+        .pool-type-option.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        .pool-type-option h4 {
+            margin: 0 0 8px 0;
+            color: #2d3748;
+            font-size: 14px;
+        }
+        .pool-type-option p {
+            margin: 0;
+            color: #718096;
+            font-size: 12px;
+        }
+        .disk-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .disk-item:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+        .disk-item.selected {
+            background: rgba(102, 126, 234, 0.05);
+            border-color: #667eea;
+        }
+        .disk-checkbox {
+            margin-right: 12px;
+        }
+        .disk-info {
+            flex: 1;
+        }
+        .disk-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 2px;
+        }
+        .disk-details {
+            font-size: 12px;
+            color: #718096;
+        }
+        .disk-warning {
+            color: #e53e3e;
+            font-size: 12px;
+            margin-left: auto;
+        }
+        .pool-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pool-item:hover {
+            border-color: #cbd5e0;
+        }
+        .pool-item.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+        .pool-radio {
+            margin-right: 15px;
+        }
+        .pool-info {
+            flex: 1;
+        }
+        .pool-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+        .pool-details {
+            color: #718096;
+            font-size: 14px;
+        }
+        .pool-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .pool-status.online {
+            background: #f0fff4;
+            color: #2f855a;
+        }
+        .pool-status.degraded {
+            background: #fffbf0;
+            color: #c05621;
+        }
+        .pool-status.offline {
+            background: #fef5f5;
+            color: #c53030;
+        }
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="breadcrumb">
+                <a href="/dashboard/">Dashboard</a> > Add Database Host
+            </div>
+            <h1>Add Database Host</h1>
+        </div>
+
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+            <div class="step active" id="step-1-indicator">
+                <div class="step-number">1</div>
+                <span>Choose Host Type</span>
+            </div>
+            <div class="step" id="step-2-indicator">
+                <div class="step-number">2</div>
+                <span>Validate Host</span>
+            </div>
+            <div class="step" id="step-3-indicator">
+                <div class="step-number">3</div>
+                <span>Setup Storage</span>
+            </div>
+            <div class="step" id="step-4-indicator">
+                <div class="step-number">4</div>
+                <span>Configure Access</span>
+            </div>
+        </div>
+
+        <div class="wizard-content">
+            <!-- Step 1: Host Type Selection -->
+            <div id="step-1" class="wizard-step">
+                <h2 style="text-align: center; margin-bottom: 30px; color: #2d3748;">Choose Your Database Host Type</h2>
+                
+                <div class="host-type-selection">
+                    <div class="host-option" id="docker-host-option" onclick="selectHostType('docker')">
+                        <span class="host-option-icon">🐳</span>
+                        <h3>Docker Host (Local)</h3>
+                        <p>Use this StagDB instance's Docker environment. Perfect for development and single-machine setups.</p>
+                    </div>
+                    <div class="host-option" id="remote-host-option" onclick="selectHostType('remote')">
+                        <span class="host-option-icon">🌐</span>
+                        <h3>Remote Host</h3>
+                        <p>Connect to a remote server via SSH. Ideal for production environments and distributed setups.</p>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <span class="info-box-icon">ℹ️</span>
+                    Both options require Docker, ZFS, and proper storage configuration. We'll validate and guide you through the setup process.
+                </div>
+            </div>
+
+            <!-- Step 2: Host Details -->
+            <div id="step-2" class="wizard-step hidden">
+                <!-- Docker Host Details -->
+                <div id="docker-host-details" class="hidden">
+                    <h2 style="margin-bottom: 20px; color: #2d3748;">Docker Host Configuration</h2>
+                    <p style="color: #718096; margin-bottom: 30px;">Configure the local Docker environment for database hosting.</p>
+                    
+                    <div class="form-section">
+                        <h3>Host Configuration</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="docker-name">Host Name</label>
+                                <input type="text" id="docker-name" value="docker-host" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="docker-type">Host Type</label>
+                                <input type="text" id="docker-type" value="Docker Host" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remote Host Details -->
+                <div id="remote-host-details" class="hidden">
+                    <h2 style="margin-bottom: 20px; color: #2d3748;">Remote Host Configuration</h2>
+                    <p style="color: #718096; margin-bottom: 30px;">Configure connection to your remote database host.</p>
+                    
+                    <div class="form-section">
+                        <h3>Basic Information</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="remote-name">Host Name</label>
+                                <input type="text" id="remote-name" placeholder="production-db-host" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="remote-ip">IP Address / Hostname</label>
+                                <input type="text" id="remote-ip" placeholder="192.168.1.100 or db.example.com" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="remote-username">SSH Username</label>
+                            <input type="text" id="remote-username" placeholder="root or ubuntu" required>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>Authentication Method</h3>
+                        <div class="auth-method-selection">
+                            <div class="auth-option selected" id="password-auth" onclick="selectAuthMethod('password')">
+                                <h4>🔑 Password</h4>
+                                <p>Use SSH password authentication</p>
+                            </div>
+                            <div class="auth-option" id="key-auth" onclick="selectAuthMethod('key')">
+                                <h4>🗝️ SSH Key</h4>
+                                <p>Use SSH private key authentication</p>
+                            </div>
+                        </div>
+
+                        <div id="password-auth-fields">
+                            <div class="form-group">
+                                <label for="remote-password">Password</label>
+                                <input type="password" id="remote-password" placeholder="Enter SSH password" required>
+                            </div>
+                        </div>
+
+                        <div id="key-auth-fields" class="hidden">
+                            <div class="form-group">
+                                <label for="remote-ssh-key">SSH Private Key</label>
+                                <textarea id="remote-ssh-key" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Validation Status -->
+                <div id="validation-status" class="hidden">
+                    <div class="validation-status" id="validation-message">
+                        <div id="validation-text"></div>
+                        <div id="validation-details" class="validation-details"></div>
+                        <div id="remediation-steps" class="remediation-steps hidden">
+                            <h4>Steps to Fix Issues:</h4>
+                            <ol id="remediation-list"></ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Storage Setup -->
+            <div id="step-3" class="wizard-step hidden">
+                <h2 style="margin-bottom: 20px; color: #2d3748;">Storage Configuration</h2>
+                <p style="color: #718096; margin-bottom: 30px;">Configure ZFS storage for instant database branching.</p>
+                
+                <div id="storage-loading" class="form-section" style="text-align: center; padding: 40px;">
+                    <div class="loading-spinner" style="margin: 0 auto 20px auto;"></div>
+                    <p>Discovering available storage options...</p>
+                </div>
+
+                <div id="storage-configuration" class="hidden">
+                    <!-- Existing Pools Section -->
+                    <div id="existing-pools-section" class="form-section">
+                        <h3>🏊 Existing ZFS Pools</h3>
+                        <p style="color: #718096; margin-bottom: 20px;">Select an existing ZFS pool to use for database storage.</p>
+                        <div id="existing-pools-list"></div>
+                    </div>
+
+                    <!-- Available Disks Section -->
+                    <div id="available-disks-section" class="form-section">
+                        <!-- Collapsible header for create new pool -->
+                        <div class="collapsible-header" onclick="toggleCreatePoolSection()" style="cursor: pointer; display: flex; align-items: center; justify-content: between; padding: 12px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 20px;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0; display: flex; align-items: center;">
+                                    <span id="create-pool-chevron" style="margin-right: 8px; transition: transform 0.2s;">▶</span>
+                                    💾 Create New ZFS Pool
+                                </h3>
+                                <p style="color: #718096; margin: 4px 0 0 24px; font-size: 14px;">Create a new ZFS pool from available disks</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Collapsible content -->
+                        <div id="create-pool-content" class="collapsible-content">
+                            <div class="form-group">
+                                <label for="pool-name">Pool Name</label>
+                                <input type="text" id="pool-name" placeholder="stagdb-pool" value="stagdb-pool">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Pool Type</label>
+                                <div class="pool-type-selection" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                                    <div class="pool-type-option selected" id="single-disk" onclick="selectPoolType('single')">
+                                        <h4>💿 Single Disk</h4>
+                                        <p>Simple setup, no redundancy</p>
+                                    </div>
+                                    <div class="pool-type-option" id="mirror" onclick="selectPoolType('mirror')">
+                                        <h4>🪞 Mirror</h4>
+                                        <p>Duplicate data across 2+ disks</p>
+                                    </div>
+                                    <div class="pool-type-option" id="raidz1" onclick="selectPoolType('raidz1')">
+                                        <h4>🔗 RAID-Z1</h4>
+                                        <p>Parity protection (3+ disks)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Available Disks</label>
+                                <div id="available-disks-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                                    <!-- Disks will be loaded here -->
+                                </div>
+                                <small style="color: #718096; margin-top: 5px; display: block;">
+                                    Select disks to include in the new ZFS pool. ⚠️ <strong>Warning:</strong> All data on selected disks will be destroyed.
+                                </small>
+                            </div>
+
+                            <button class="btn btn-primary" id="create-pool-btn" onclick="createZfsPool()" disabled>
+                                Create ZFS Pool
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- No Storage Options -->
+                    <div id="no-storage-options" class="form-section hidden" style="text-align: center; padding: 40px;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">📦</div>
+                        <h3 style="color: #718096;">No Storage Options Available</h3>
+                        <p style="color: #a0aec0;">No existing ZFS pools or available disks were found on this host.</p>
+                        <div class="info-box" style="margin-top: 20px;">
+                            <span class="info-box-icon">💡</span>
+                            You may need to:
+                            <ul style="text-align: left; margin: 10px 0;">
+                                <li>Attach additional storage devices</li>
+                                <li>Import existing ZFS pools</li>
+                                <li>Check disk permissions</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pool Creation Status -->
+                <div id="pool-creation-status" class="hidden">
+                    <div class="validation-status" id="pool-creation-message">
+                        <div id="pool-creation-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Access Configuration -->
+            <div id="step-4" class="wizard-step hidden">
+                <h2 style="margin-bottom: 20px; color: #2d3748;">Configure Database Access</h2>
+                <p style="color: #718096; margin-bottom: 30px;">How will users connect to databases created on this host?</p>
+                
+                <div class="form-section">
+                    <h3>Connection Settings</h3>
+                    <div class="form-group">
+                        <label for="user-accessible-host">User-Accessible Hostname/IP</label>
+                        <input type="text" id="user-accessible-host" placeholder="localhost or your-server.com or 192.168.1.100">
+                        <small style="color: #718096; margin-top: 5px; display: block;">
+                            This is the hostname or IP address that users will use to connect to databases. 
+                            It may be different from the SSH connection address.
+                        </small>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="default-username">Default Database Username</label>
+                            <input type="text" id="default-username" value="postgres" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="default-port-range">Port Range Start</label>
+                            <input type="number" id="default-port-range" value="5432" min="1024" max="65535" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <span class="info-box-icon">💡</span>
+                    <strong>Connection Example:</strong> If you enter "db.mycompany.com", users will receive connection strings like 
+                    <code>postgresql://postgres:password@db.mycompany.com:5432/database_name</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wizard Actions -->
+        <div class="wizard-actions">
+            <button class="btn btn-secondary" id="back-btn" onclick="previousStep()" style="display: none;">← Back</button>
+            <div>
+                <button class="btn btn-secondary" onclick="window.location.href='/dashboard/'">Cancel</button>
+                <button class="btn btn-primary" id="next-btn" onclick="nextStep()" disabled>Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let selectedHostType = null;
+        let selectedAuthMethod = 'password';
+        let validationPassed = false;
+        let selectedPoolType = 'single';
+        let selectedDisks = [];
+        let selectedExistingPool = null;
+        let availableDisks = [];
+        let existingPools = [];
+
+        function toggleCreatePoolSection() {
+            const content = document.getElementById('create-pool-content');
+            const chevron = document.getElementById('create-pool-chevron');
+            
+            if (content.classList.contains('collapsed')) {
+                // Expand
+                content.classList.remove('collapsed');
+                chevron.style.transform = 'rotate(90deg)';
+            } else {
+                // Collapse
+                content.classList.add('collapsed');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function selectHostType(type) {
+            selectedHostType = type;
+            
+            // Update UI
+            document.querySelectorAll('.host-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            if (type === 'docker') {
+                document.getElementById('docker-host-option').classList.add('selected');
+            } else {
+                document.getElementById('remote-host-option').classList.add('selected');
+            }
+            
+            // Enable next button
+            document.getElementById('next-btn').disabled = false;
+        }
+
+        function selectAuthMethod(method) {
+            selectedAuthMethod = method;
+            
+            // Update UI
+            document.querySelectorAll('.auth-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            document.getElementById(method + '-auth').classList.add('selected');
+            
+            // Show/hide fields
+            document.getElementById('password-auth-fields').classList.toggle('hidden', method !== 'password');
+            document.getElementById('key-auth-fields').classList.toggle('hidden', method !== 'key');
+        }
+
+        function updateStepIndicator() {
+            // Update step indicators
+            for (let i = 1; i <= 4; i++) {
+                const indicator = document.getElementById(`step-${i}-indicator`);
+                indicator.classList.remove('active', 'completed');
+                
+                if (i < currentStep) {
+                    indicator.classList.add('completed');
+                } else if (i === currentStep) {
+                    indicator.classList.add('active');
+                }
+            }
+        }
+
+        function showStep(step) {
+            console.log('=== showStep() called with step:', step);
+            
+            // Hide all steps
+            document.querySelectorAll('.wizard-step').forEach(stepEl => {
+                stepEl.classList.add('hidden');
+            });
+            
+            // Show current step
+            document.getElementById(`step-${step}`).classList.remove('hidden');
+            
+            // Update step indicator
+            updateStepIndicator();
+            
+            // Update navigation buttons
+            document.getElementById('back-btn').style.display = step > 1 ? 'block' : 'none';
+            
+            // Update next button text and behavior
+            const nextBtn = document.getElementById('next-btn');
+            if (step === 4) {
+                nextBtn.textContent = 'Complete Setup';
+                nextBtn.onclick = completeSetup;
+            } else {
+                nextBtn.textContent = 'Next →';
+                nextBtn.onclick = nextStep;
+            }
+            
+            // Special handling for step 3 - load storage configuration
+            if (step === 3) {
+                console.log('Step 3 detected - calling loadStorageConfiguration()');
+                setTimeout(() => loadStorageConfiguration(), 100);
+            }
+        }
+
+        function nextStep() {
+            if (currentStep === 1) {
+                if (!selectedHostType) {
+                    alert('Please select a host type');
+                    return;
+                }
+                
+                // Show appropriate host details
+                document.getElementById('docker-host-details').classList.toggle('hidden', selectedHostType !== 'docker');
+                document.getElementById('remote-host-details').classList.toggle('hidden', selectedHostType !== 'remote');
+                
+                // Auto-fill user-accessible host based on selection
+                if (selectedHostType === 'docker') {
+                    document.getElementById('user-accessible-host').value = 'localhost';
+                }
+                
+                currentStep = 2;
+                // Enable the button and set it up for validation
+                document.getElementById('next-btn').disabled = false;
+                document.getElementById('next-btn').textContent = 'Validate Host';
+                document.getElementById('next-btn').onclick = validateHost;
+                
+            } else if (currentStep === 2) {
+                if (!validationPassed) {
+                    validateHost();
+                    return;
+                }
+                currentStep = 3;
+                document.getElementById('next-btn').disabled = true; // Will be enabled by storage loading
+                document.getElementById('next-btn').textContent = 'Next →';
+                document.getElementById('next-btn').onclick = nextStep;
+                
+            } else if (currentStep === 3) {
+                // Step 3: Storage Configuration - validate storage selection before proceeding
+                if (!selectedExistingPool && selectedDisks.length === 0 && !document.getElementById('skip-storage')?.checked) {
+                    alert('Please select a storage option or choose to skip storage configuration');
+                    return;
+                }
+                currentStep = 4;
+                document.getElementById('next-btn').disabled = false;
+                
+            } else if (currentStep === 4) {
+                // Step 4: Access Configuration - validate before completing
+                if (!validateAccessConfiguration()) {
+                    return;
+                }
+                completeSetup();
+                return;
+            }
+            
+            showStep(currentStep);
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+                
+                // Reset next button if going back
+                document.getElementById('next-btn').disabled = false;
+                if (currentStep === 2) {
+                    document.getElementById('next-btn').textContent = validationPassed ? 'Next →' : 'Validate Host';
+                    document.getElementById('next-btn').onclick = validationPassed ? nextStep : validateHost;
+                } else if (currentStep === 3) {
+                    document.getElementById('next-btn').textContent = 'Next →';
+                    document.getElementById('next-btn').onclick = nextStep;
+                } else if (currentStep === 4) {
+                    document.getElementById('next-btn').textContent = 'Complete Setup';
+                    document.getElementById('next-btn').onclick = completeSetup;
+                }
+            }
+        }
+
+        async function validateHost() {
+            const nextBtn = document.getElementById('next-btn');
+            const originalText = nextBtn.textContent;
+            
+            nextBtn.disabled = true;
+            nextBtn.classList.add('loading');
+            nextBtn.textContent = 'Validating...';
+            
+            try {
+                let validationData = {};
+                
+                if (selectedHostType === 'docker') {
+                    // Validate Docker host
+                    console.log('Starting Docker host validation...');
+                    const response = await fetch('/api/system/validate/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    validationData = await response.json();
+                    console.log('Docker host validation response:', validationData);
+                } else {
+                    // Validate remote host
+                    const hostData = {
+                        name: document.getElementById('remote-name').value,
+                        ip_address: document.getElementById('remote-ip').value,
+                        username: document.getElementById('remote-username').value,
+                        auth_method: selectedAuthMethod
+                    };
+                    
+                    if (selectedAuthMethod === 'password') {
+                        hostData.password = document.getElementById('remote-password').value;
+                    } else {
+                        hostData.ssh_key = document.getElementById('remote-ssh-key').value;
+                    }
+                    
+                    // Validate required fields
+                    if (!hostData.name || !hostData.ip_address || !hostData.username) {
+                        throw new Error('Please fill in all required fields');
+                    }
+                    
+                    if (selectedAuthMethod === 'password' && !hostData.password) {
+                        throw new Error('Please enter the SSH password');
+                    }
+                    
+                    if (selectedAuthMethod === 'key' && !hostData.ssh_key) {
+                        throw new Error('Please enter the SSH private key');
+                    }
+                    
+                    const response = await fetch('/api/hosts/validate-remote/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify(hostData)
+                    });
+                    validationData = await response.json();
+                }
+                
+                showValidationResults(validationData);
+                
+            } catch (error) {
+                showValidationResults({
+                    success: false,
+                    message: error.message,
+                    overall_status: 'error'
+                });
+            } finally {
+                nextBtn.classList.remove('loading');
+                nextBtn.disabled = false;
+                nextBtn.textContent = originalText;
+            }
+        }
+
+        function showValidationResults(data) {
+            console.log('Showing validation results:', data);
+            const statusDiv = document.getElementById('validation-status');
+            const messageDiv = document.getElementById('validation-message');
+            const textDiv = document.getElementById('validation-text');
+            const detailsDiv = document.getElementById('validation-details');
+            const stepsDiv = document.getElementById('remediation-steps');
+            const stepsList = document.getElementById('remediation-list');
+            
+            statusDiv.classList.remove('hidden');
+            
+            if (data.success && data.overall_status === 'valid') {
+                messageDiv.className = 'validation-status success';
+                textDiv.textContent = '✅ Host validation successful! Ready to proceed.';
+                validationPassed = true;
+                
+                document.getElementById('next-btn').disabled = false;
+                document.getElementById('next-btn').textContent = 'Next →';
+                document.getElementById('next-btn').onclick = nextStep;
+                
+            } else if (data.success && data.overall_status === 'warning') {
+                messageDiv.className = 'validation-status warning';
+                textDiv.textContent = '⚠️ Host validation passed with warnings. You can proceed but some features may be limited.';
+                validationPassed = true;
+                
+                document.getElementById('next-btn').disabled = false;
+                document.getElementById('next-btn').textContent = 'Next →';
+                document.getElementById('next-btn').onclick = nextStep;
+                
+            } else {
+                messageDiv.className = 'validation-status error';
+                textDiv.textContent = '❌ Host validation failed. Please address the issues below.';
+                validationPassed = false;
+                
+                document.getElementById('next-btn').disabled = true;
+                
+                // Show remediation steps if available
+                if (data.remediation_steps && data.remediation_steps.length > 0) {
+                    stepsDiv.classList.remove('hidden');
+                    stepsList.innerHTML = '';
+                    data.remediation_steps.forEach(step => {
+                        const li = document.createElement('li');
+                        li.textContent = step;
+                        stepsList.appendChild(li);
+                    });
+                }
+            }
+            
+            // Show validation details if available
+            if (data.components) {
+                let detailsHtml = '<div style="margin-top: 15px;"><strong>Component Status:</strong><br>';
+                for (const [name, component] of Object.entries(data.components)) {
+                    const statusClass = component.status === 'pass' ? 'pass' : 
+                                       component.status === 'warning' ? 'warning' : 'fail';
+                    detailsHtml += `<div class="validation-check">
+                        <div class="check-status ${statusClass}">
+                            ${component.status === 'pass' ? '✓' : 
+                              component.status === 'warning' ? '!' : '✗'}
+                        </div>
+                        <span><strong>${name}:</strong> ${component.message}</span>
+                    </div>`;
+                }
+                detailsHtml += '</div>';
+                detailsDiv.innerHTML = detailsHtml;
+            }
+        }
+
+        function validateAccessConfiguration() {
+            const userHost = document.getElementById('user-accessible-host').value;
+            const defaultUsername = document.getElementById('default-username').value;
+            const portRange = document.getElementById('default-port-range').value;
+            
+            if (!userHost || !defaultUsername || !portRange) {
+                alert('Please fill in all access configuration fields');
+                return false;
+            }
+            
+            if (parseInt(portRange) < 1024 || parseInt(portRange) > 65535) {
+                alert('Port range start must be between 1024 and 65535');
+                return false;
+            }
+            
+            return true;
+        }
+
+        async function loadStorageConfiguration() {
+            console.log('=== loadStorageConfiguration() called ===');
+            console.log('Current step when loading storage:', currentStep);
+            
+            // Show loading state
+            document.getElementById('storage-loading').classList.remove('hidden');
+            document.getElementById('storage-configuration').classList.add('hidden');
+            
+            try {
+                // Discover available storage options
+                console.log('Making storage discovery request...', {
+                    host_type: selectedHostType,
+                    host_data: getHostData()
+                });
+                
+                const response = await fetch('/api/storage/discover/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        host_type: selectedHostType,
+                        host_data: getHostData()
+                    })
+                });
+                
+                console.log('Storage discovery response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Storage discovery HTTP error:', response.status, errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Storage discovery response data:', data);
+                
+                if (data.success) {
+                    existingPools = data.existing_pools || [];
+                    availableDisks = data.available_disks || [];
+                    
+                    console.log('API returned:', {
+                        existingPools: existingPools,
+                        availableDisks: availableDisks,
+                        debug: data.debug
+                    });
+                    
+                    // Hide loading and show configuration
+                    document.getElementById('storage-loading').classList.add('hidden');
+                    
+                    if (existingPools.length > 0 || availableDisks.length > 0) {
+                        document.getElementById('storage-configuration').classList.remove('hidden');
+                        renderExistingPools();
+                        renderAvailableDisks();
+                        
+                        // Auto-collapse create pool section if there are existing usable pools
+                        if (existingPools.length > 0) {
+                            const content = document.getElementById('create-pool-content');
+                            const chevron = document.getElementById('create-pool-chevron');
+                            content.classList.add('collapsed');
+                            chevron.style.transform = 'rotate(0deg)';
+                        } else {
+                            // Expand create pool section if no existing pools
+                            const content = document.getElementById('create-pool-content');
+                            const chevron = document.getElementById('create-pool-chevron');
+                            content.classList.remove('collapsed');
+                            chevron.style.transform = 'rotate(90deg)';
+                        }
+                        
+                        document.getElementById('next-btn').disabled = false;
+                    } else {
+                        // Show debug information when no storage is found
+                        document.getElementById('no-storage-options').classList.remove('hidden');
+                        
+                        // Add debug information to help troubleshoot
+                        if (data.debug) {
+                            const debugDiv = document.createElement('div');
+                            debugDiv.style.cssText = 'margin-top: 20px; padding: 15px; background: #f7fafc; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 12px;';
+                            debugDiv.innerHTML = `
+                                <strong>Debug Information:</strong><br>
+                                ZFS Error: ${data.debug.zfs_error || 'None'}<br>
+                                Disk Discovery Error: ${data.debug.lsblk_error || 'None'}<br>
+                                Total Devices Found: ${data.debug.total_devices_found || 0}<br>
+                                ${data.debug.all_devices ? 'Devices: ' + JSON.stringify(data.debug.all_devices, null, 2) : ''}
+                            `;
+                            document.getElementById('no-storage-options').appendChild(debugDiv);
+                        }
+                        
+                        document.getElementById('next-btn').disabled = true;
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to discover storage options');
+                }
+                
+            } catch (error) {
+                console.error('Storage configuration error:', error);
+                
+                // For now, let's provide a fallback that allows manual configuration
+                document.getElementById('storage-loading').classList.add('hidden');
+                
+                // Show a simplified configuration option
+                showStorageFallback(error.message);
+            }
+            
+            // Add timeout to prevent infinite loading
+            setTimeout(() => {
+                if (!document.getElementById('storage-loading').classList.contains('hidden')) {
+                    console.warn('Storage discovery timed out after 30 seconds');
+                    document.getElementById('storage-loading').classList.add('hidden');
+                    document.getElementById('no-storage-options').classList.remove('hidden');
+                    document.querySelector('#no-storage-options h3').textContent = 'Storage Discovery Timeout';
+                    document.querySelector('#no-storage-options p').textContent = 'Storage discovery is taking too long. Please check your host connection.';
+                    document.getElementById('next-btn').disabled = true;
+                }
+            }, 30000); // 30 second timeout
+        }
+
+        function showStorageFallback(errorMessage) {
+            document.getElementById('storage-configuration').classList.remove('hidden');
+            
+            // Hide the sections that depend on API discovery
+            document.getElementById('existing-pools-section').style.display = 'none';
+            document.getElementById('available-disks-section').style.display = 'none';
+            
+            // Show a manual configuration option
+            const storageConfig = document.getElementById('storage-configuration');
+            storageConfig.innerHTML = `
+                <div class="form-section">
+                    <h3>⚠️ Storage Discovery Issue</h3>
+                    <div class="info-box" style="background: #fffbf0; border-color: #fbd38d; color: #c05621;">
+                        <span class="info-box-icon">⚠️</span>
+                        <strong>Storage discovery failed:</strong> ${errorMessage}
+                    </div>
+                    <p style="color: #718096; margin: 20px 0;">
+                        Don't worry! You can still proceed with the host setup. Storage can be configured later through the dashboard.
+                    </p>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="skip-storage" onchange="toggleSkipStorage()" style="margin-right: 8px;">
+                            Skip storage configuration for now
+                        </label>
+                        <small style="color: #718096; display: block; margin-top: 5px;">
+                            You can configure ZFS storage later from the host management page.
+                        </small>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('next-btn').disabled = true;
+        }
+
+        function toggleSkipStorage() {
+            const skipCheckbox = document.getElementById('skip-storage');
+            document.getElementById('next-btn').disabled = !skipCheckbox.checked;
+        }
+
+        function getHostData() {
+            if (selectedHostType === 'docker') {
+                return { type: 'docker' };
+            } else {
+                return {
+                    type: 'remote',
+                    name: document.getElementById('remote-name').value,
+                    ip_address: document.getElementById('remote-ip').value,
+                    username: document.getElementById('remote-username').value,
+                    auth_method: selectedAuthMethod,
+                    password: selectedAuthMethod === 'password' ? document.getElementById('remote-password').value : '',
+                    ssh_key: selectedAuthMethod === 'key' ? document.getElementById('remote-ssh-key').value : ''
+                };
+            }
+        }
+
+        function renderExistingPools() {
+            const poolsList = document.getElementById('existing-pools-list');
+            
+            if (existingPools.length === 0) {
+                document.getElementById('existing-pools-section').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('existing-pools-section').style.display = 'block';
+            poolsList.innerHTML = '';
+            
+            existingPools.forEach(pool => {
+                const poolItem = document.createElement('div');
+                poolItem.className = 'pool-item';
+                poolItem.onclick = () => selectExistingPool(pool.name);
+                
+                const statusClass = pool.health === 'ONLINE' ? 'online' : 
+                                   pool.health === 'DEGRADED' ? 'degraded' : 'offline';
+                
+                poolItem.innerHTML = `
+                    <input type="radio" name="existing-pool" value="${pool.name}" class="pool-radio">
+                    <div class="pool-info">
+                        <div class="pool-name">${pool.name}</div>
+                        <div class="pool-details">${pool.size || 'Unknown size'} • ${pool.used || 'Unknown used'} used • ${pool.free || 'Unknown free'} free</div>
+                    </div>
+                    <div class="pool-status ${statusClass}">${pool.health || 'UNKNOWN'}</div>
+                `;
+                
+                poolsList.appendChild(poolItem);
+            });
+        }
+
+        function renderAvailableDisks() {
+            console.log('=== renderAvailableDisks() called ===');
+            console.log('availableDisks:', availableDisks);
+            console.log('availableDisks.length:', availableDisks.length);
+            
+            const disksList = document.getElementById('available-disks-list');
+            
+            if (availableDisks.length === 0) {
+                console.log('No disks found, hiding section');
+                document.getElementById('available-disks-section').style.display = 'none';
+                return;
+            }
+            
+            console.log('Showing disks section and rendering', availableDisks.length, 'disks');
+            document.getElementById('available-disks-section').style.display = 'block';
+            disksList.innerHTML = '';
+            
+            availableDisks.forEach((disk, index) => {
+                console.log(`Rendering disk ${index}:`, disk);
+                
+                try {
+                    const diskItem = document.createElement('div');
+                    diskItem.className = `disk-item ${disk.usable ? '' : 'disk-unusable'}`;
+                    
+                    // Disable click for unusable disks
+                    if (disk.usable) {
+                        diskItem.onclick = () => toggleDiskSelection(disk.name);
+                    } else {
+                        diskItem.style.cursor = 'not-allowed';
+                        diskItem.style.opacity = '0.6';
+                    }
+                    
+                    // Create status indicator
+                    const statusColors = {
+                        'available': '#48bb78',
+                        'system': '#e53e3e', 
+                        'mounted': '#ed8936',
+                        'filesystem': '#ed8936',
+                        'partitioned': '#ed8936'
+                    };
+                    
+                    const statusColor = statusColors[disk.status] || '#cbd5e0';
+                    
+                    // Handle missing properties gracefully
+                    const warnings = disk.warnings || [];
+                    const status = disk.status || 'unknown';
+                    const description = disk.description || 'Unknown status';
+                    const usable = disk.usable !== undefined ? disk.usable : false;
+                    
+                    diskItem.innerHTML = `
+                        <input type="checkbox" class="disk-checkbox" value="${disk.name}" ${usable ? '' : 'disabled'}>
+                        <div class="disk-info">
+                            <div class="disk-name">
+                                ${disk.name}
+                                <span class="disk-status-badge" style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 8px;">
+                                    ${status.toUpperCase()}
+                                </span>
+                            </div>
+                            <div class="disk-details">${disk.size || 'Unknown size'} • ${description}</div>
+                            ${warnings.length > 0 ? `<div class="disk-warnings" style="color: #e53e3e; font-size: 11px; margin-top: 2px;">${warnings.join(' • ')}</div>` : ''}
+                        </div>
+                        <div class="disk-warning" style="color: ${usable ? '#e53e3e' : '#a0aec0'};">
+                            ${usable ? '⚠️ Will erase' : '🚫 Unusable'}
+                        </div>
+                    `;
+                    
+                    disksList.appendChild(diskItem);
+                    console.log(`Successfully rendered disk ${disk.name}`);
+                    
+                } catch (error) {
+                    console.error(`Error rendering disk ${disk.name}:`, error);
+                    
+                    // Fallback simple rendering
+                    const diskItem = document.createElement('div');
+                    diskItem.className = 'disk-item';
+                    diskItem.innerHTML = `
+                        <input type="checkbox" class="disk-checkbox" value="${disk.name}">
+                        <div class="disk-info">
+                            <div class="disk-name">${disk.name}</div>
+                            <div class="disk-details">${disk.size || 'Unknown size'} • ${disk.type || 'Disk'}</div>
+                        </div>
+                        <div class="disk-warning">⚠️ Will erase</div>
+                    `;
+                    disksList.appendChild(diskItem);
+                }
+            });
+            
+            updateCreatePoolButton();
+        }
+
+        function selectExistingPool(poolName) {
+            selectedExistingPool = poolName;
+            selectedDisks = []; // Clear disk selection
+            
+            // Update UI
+            document.querySelectorAll('.pool-item').forEach(item => {
+                item.classList.remove('selected');
+                item.querySelector('input[type="radio"]').checked = false;
+            });
+            
+            document.querySelectorAll('.disk-item').forEach(item => {
+                item.classList.remove('selected');
+                item.querySelector('input[type="checkbox"]').checked = false;
+            });
+            
+            // Select the chosen pool
+            const selectedItem = document.querySelector(`input[value="${poolName}"]`).closest('.pool-item');
+            selectedItem.classList.add('selected');
+            selectedItem.querySelector('input[type="radio"]').checked = true;
+            
+            updateCreatePoolButton();
+            document.getElementById('next-btn').disabled = false;
+        }
+
+        function selectPoolType(type) {
+            selectedPoolType = type;
+            
+            // Update UI
+            document.querySelectorAll('.pool-type-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            document.getElementById(type === 'single' ? 'single-disk' : type).classList.add('selected');
+            
+            updateCreatePoolButton();
+        }
+
+        function toggleDiskSelection(diskName) {
+            // Find the disk info to check if it's usable
+            const disk = availableDisks.find(d => d.name === diskName);
+            if (!disk || !disk.usable) {
+                alert(`Cannot use ${diskName}: ${disk ? disk.description : 'Disk not found'}`);
+                return;
+            }
+            
+            const index = selectedDisks.indexOf(diskName);
+            
+            if (index > -1) {
+                selectedDisks.splice(index, 1);
+            } else {
+                selectedDisks.push(diskName);
+            }
+            
+            selectedExistingPool = null; // Clear pool selection
+            
+            // Update UI
+            document.querySelectorAll('.pool-item').forEach(item => {
+                item.classList.remove('selected');
+                item.querySelector('input[type="radio"]').checked = false;
+            });
+            
+            const diskItem = document.querySelector(`input[value="${diskName}"]`).closest('.disk-item');
+            const checkbox = diskItem.querySelector('input[type="checkbox"]');
+            
+            if (selectedDisks.includes(diskName)) {
+                diskItem.classList.add('selected');
+                checkbox.checked = true;
+            } else {
+                diskItem.classList.remove('selected');
+                checkbox.checked = false;
+            }
+            
+            updateCreatePoolButton();
+        }
+
+        function updateCreatePoolButton() {
+            const createBtn = document.getElementById('create-pool-btn');
+            const poolName = document.getElementById('pool-name').value.trim();
+            
+            let canCreate = false;
+            
+            if (poolName && selectedDisks.length > 0) {
+                if (selectedPoolType === 'single' && selectedDisks.length >= 1) {
+                    canCreate = true;
+                } else if (selectedPoolType === 'mirror' && selectedDisks.length >= 2) {
+                    canCreate = true;
+                } else if (selectedPoolType === 'raidz1' && selectedDisks.length >= 3) {
+                    canCreate = true;
+                }
+            }
+            
+            createBtn.disabled = !canCreate;
+            
+            // Update next button
+            document.getElementById('next-btn').disabled = !(selectedExistingPool || canCreate);
+        }
+
+        async function createZfsPool() {
+            const createBtn = document.getElementById('create-pool-btn');
+            const statusDiv = document.getElementById('pool-creation-status');
+            const messageDiv = document.getElementById('pool-creation-message');
+            const textDiv = document.getElementById('pool-creation-text');
+            
+            createBtn.disabled = true;
+            createBtn.classList.add('loading');
+            createBtn.textContent = 'Creating Pool...';
+            
+            try {
+                const poolData = {
+                    pool_name: document.getElementById('pool-name').value.trim(),
+                    pool_type: selectedPoolType,
+                    selected_disks: selectedDisks,
+                    host_type: selectedHostType,
+                    host_data: getHostData()
+                };
+                
+                console.log('Creating ZFS pool:', poolData);
+                
+                const response = await fetch('/api/storage/create-pool/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(poolData)
+                });
+                
+                const data = await response.json();
+                console.log('Pool creation response:', data);
+                
+                statusDiv.classList.remove('hidden');
+                
+                if (data.success) {
+                    messageDiv.className = 'validation-status success';
+                    textDiv.textContent = `✅ ZFS pool "${poolData.pool_name}" created successfully!`;
+                    
+                    // Refresh the pools list
+                    await loadStorageConfiguration();
+                    
+                    document.getElementById('next-btn').disabled = false;
+                } else {
+                    messageDiv.className = 'validation-status error';
+                    textDiv.textContent = `❌ Failed to create ZFS pool: ${data.message || data.error}`;
+                }
+                
+            } catch (error) {
+                console.error('Pool creation error:', error);
+                statusDiv.classList.remove('hidden');
+                messageDiv.className = 'validation-status error';
+                textDiv.textContent = `❌ Pool creation failed: ${error.message}`;
+                
+            } finally {
+                createBtn.classList.remove('loading');
+                createBtn.disabled = false;
+                createBtn.textContent = 'Create ZFS Pool';
+            }
+        }
+
+        // Update pool name input handler
+        document.addEventListener('DOMContentLoaded', function() {
+            const poolNameInput = document.getElementById('pool-name');
+            if (poolNameInput) {
+                poolNameInput.addEventListener('input', updateCreatePoolButton);
+            }
+        });
+
+        async function completeSetup() {
+            const nextBtn = document.getElementById('next-btn');
+            nextBtn.disabled = true;
+            nextBtn.classList.add('loading');
+            nextBtn.textContent = 'Creating Host...';
+            
+            try {
+                const hostData = {
+                    host_type: selectedHostType,
+                    user_accessible_host: document.getElementById('user-accessible-host').value,
+                    default_username: document.getElementById('default-username').value,
+                    default_port_range: parseInt(document.getElementById('default-port-range').value),
+                    selected_pool: selectedExistingPool,
+                    storage_configured: selectedExistingPool || (selectedDisks.length > 0)
+                };
+                
+                if (selectedHostType === 'remote') {
+                    hostData.name = document.getElementById('remote-name').value;
+                    hostData.ip_address = document.getElementById('remote-ip').value;
+                    hostData.username = document.getElementById('remote-username').value;
+                    hostData.auth_method = selectedAuthMethod;
+                    
+                    if (selectedAuthMethod === 'password') {
+                        hostData.password = document.getElementById('remote-password').value;
+                    } else {
+                        hostData.ssh_key = document.getElementById('remote-ssh-key').value;
+                    }
+                }
+                
+                const response = await fetch('/api/hosts/create-database-host/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(hostData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Database host added successfully!');
+                    window.location.href = '/dashboard/';
+                } else {
+                    alert('Failed to add database host: ' + (data.message || data.error));
+                }
+                
+            } catch (error) {
+                alert('Error adding database host: ' + error.message);
+            } finally {
+                nextBtn.classList.remove('loading');
+                nextBtn.disabled = false;
+                nextBtn.textContent = 'Complete Setup';
+            }
+        }
+
+        // Get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Initialize the wizard
+        showStep(1);
+        
+        // Auto-populate user-accessible host for remote hosts based on IP
+        document.getElementById('remote-ip').addEventListener('input', function() {
+            if (selectedHostType === 'remote') {
+                document.getElementById('user-accessible-host').value = this.value;
+            }
+        });
+    </script>
+</body>
+</html>

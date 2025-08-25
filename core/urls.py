@@ -16,6 +16,7 @@ urlpatterns = [
     path('databases/<int:database_id>/', views.database_detail_page, name='database_detail_page'),
     path('databases/<int:database_id>/connect/', views.database_connect, name='database_connect'),
     path('hosts/add/', views.add_host, name='add_host'),
+    path('hosts/add-database-host/', views.add_database_host, name='add_database_host'),
     path('hosts/docker-setup/', docker_host_views.docker_host_setup_wizard, name='docker_host_setup'),
     path('storage/', views.storage_config, name='storage_config'),
     path('storage/sync/', views.storage_sync_dashboard, name='storage_sync_dashboard'),
@@ -35,6 +36,8 @@ urlpatterns = [
     path('api/hosts/<int:host_id>/validate/', views.validate_host, name='validate_host'),
     path('api/hosts/<int:host_id>/remove/', views.remove_host, name='remove_host'),
     path('api/hosts/<int:host_id>/removal-check/', views.host_removal_check, name='host_removal_check'),
+    path('api/hosts/validate-remote/', views.validate_remote_host, name='validate_remote_host'),
+    path('api/hosts/create-database-host/', views.create_database_host, name='create_database_host'),
     
     # Database management URLs
     path('api/databases/list/', database_views.list_databases, name='list_databases'),
@@ -71,6 +74,8 @@ urlpatterns = [
     path('api/storage/validate/', storage_views.validate_storage_configuration, name='validate_storage_configuration'),
     path('api/storage/recommendations/', storage_views.storage_recommendations, name='storage_recommendations'),
     path('api/storage/disks/<str:disk_name>/info/', storage_views.disk_info, name='disk_info'),
+    path('api/storage/discover/', views.discover_storage_options, name='discover_storage_options'),
+    path('api/storage/create-pool/', views.create_zfs_pool, name='create_zfs_pool'),
     
     # Docker host setup URLs
     path('api/hosts/docker-host/status/', docker_host_views.docker_host_status, name='docker_host_status'),

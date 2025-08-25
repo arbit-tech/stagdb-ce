@@ -37,6 +37,15 @@ class HostVM(models.Model):
     zfs_pools = models.JSONField(default=list, blank=True)
     system_resources = models.JSONField(default=dict, blank=True)
     
+    # User-accessible connection information
+    user_accessible_host = models.CharField(
+        max_length=255, 
+        blank=True,
+        help_text="Hostname/IP that users will use to connect to databases (may differ from ip_address for SSH)"
+    )
+    default_username = models.CharField(max_length=50, default='postgres', blank=True)
+    default_port_range = models.IntegerField(default=5432)
+    
     @classmethod
     def get_or_create_docker_host(cls):
         """Get or create Docker host entry"""
@@ -332,17 +341,23 @@ class Database(models.Model):
         return f"{self.name} on {self.host_vm.name}"
     
     def get_connection_string(self, include_password=True):
-        """Generate PostgreSQL connection string"""
+        """Generate PostgreSQL connection string using user-accessible host"""
+        # Use user_accessible_host if configured, otherwise fall back to ip_address
+        host = self.host_vm.user_accessible_host or self.host_vm.ip_address
+        
         base = f"postgresql://{self.username}"
         if include_password:
             base += f":{self.password}"
-        base += f"@{self.host_vm.ip_address}:{self.port}/{self.database_name}"
+        base += f"@{host}:{self.port}/{self.database_name}"
         return base
     
     def get_connection_info(self):
         """Get structured connection information"""
+        # Use user_accessible_host if configured, otherwise fall back to ip_address
+        host = self.host_vm.user_accessible_host or self.host_vm.ip_address
+        
         return {
-            'host': self.host_vm.ip_address,
+            'host': host,
             'port': self.port,
             'database': self.database_name,
             'username': self.username,

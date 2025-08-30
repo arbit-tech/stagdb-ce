@@ -870,6 +870,12 @@
                 nextBtn.onclick = nextStep;
             }
             
+            // Special handling for step 2 - auto-run validation
+            if (step === 2) {
+                console.log('Step 2 detected - auto-running validation');
+                setTimeout(() => validateHost(), 100);
+            }
+            
             // Special handling for step 3 - load storage configuration
             if (step === 3) {
                 console.log('Step 3 detected - calling loadStorageConfiguration()');
@@ -894,14 +900,14 @@
                 }
                 
                 currentStep = 2;
-                // Enable the button and set it up for validation
-                document.getElementById('next-btn').disabled = false;
-                document.getElementById('next-btn').textContent = 'Validate Host';
-                document.getElementById('next-btn').onclick = validateHost;
+                // Disable the button initially - validation will enable it
+                document.getElementById('next-btn').disabled = true;
+                document.getElementById('next-btn').textContent = 'Next →';
+                document.getElementById('next-btn').onclick = nextStep;
                 
             } else if (currentStep === 2) {
                 if (!validationPassed) {
-                    validateHost();
+                    alert('Please wait for host validation to complete');
                     return;
                 }
                 currentStep = 3;
@@ -936,16 +942,19 @@
                 showStep(currentStep);
                 
                 // Reset next button if going back
-                document.getElementById('next-btn').disabled = false;
                 if (currentStep === 2) {
-                    document.getElementById('next-btn').textContent = validationPassed ? 'Next →' : 'Validate Host';
-                    document.getElementById('next-btn').onclick = validationPassed ? nextStep : validateHost;
-                } else if (currentStep === 3) {
+                    document.getElementById('next-btn').disabled = !validationPassed;
                     document.getElementById('next-btn').textContent = 'Next →';
                     document.getElementById('next-btn').onclick = nextStep;
-                } else if (currentStep === 4) {
-                    document.getElementById('next-btn').textContent = 'Complete Setup';
-                    document.getElementById('next-btn').onclick = completeSetup;
+                } else {
+                    document.getElementById('next-btn').disabled = false;
+                    if (currentStep === 3) {
+                        document.getElementById('next-btn').textContent = 'Next →';
+                        document.getElementById('next-btn').onclick = nextStep;
+                    } else if (currentStep === 4) {
+                        document.getElementById('next-btn').textContent = 'Complete Setup';
+                        document.getElementById('next-btn').onclick = completeSetup;
+                    }
                 }
             }
         }

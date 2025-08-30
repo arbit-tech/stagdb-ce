@@ -208,7 +208,7 @@ StagDB CE provides a comprehensive REST API for programmatic database management
 
 ## Documentation
 
-- **Setup Guide**: See [CLAUDE.md](CLAUDE.md) for detailed development instructions and architecture overview
+- **Setup Guide**: Detailed development instructions and architecture overview available in project documentation
 - **Database Management**: Complete PostgreSQL lifecycle management with ZFS-backed instant branching
 - **Storage Configuration**: Comprehensive wizard with intelligent recommendations for ZFS pools, RAID configurations, and storage optimization
 - **API Reference**: 20+ RESTful endpoints for programmatic database and storage operations

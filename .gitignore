@@ -224,6 +224,7 @@ plan/
 # AI assistant files
 GEMINI.md
 CLAUDE.md
+AGENTS.md
 
 # Development and testing
 .coverage

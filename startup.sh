@@ -2,6 +2,10 @@
 
 echo "Starting StagDB..."
 
+# Ensure data directory exists with proper permissions
+mkdir -p /app/data
+chmod 755 /app/data
+
 # Generate migrations for any model changes
 echo "Generating migrations..."
 python manage.py makemigrations

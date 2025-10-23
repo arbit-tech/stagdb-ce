@@ -86,18 +86,24 @@ Leverages ZFS copy-on-write snapshots to create database branches without duplic
    cd stagdb-ce
    ```
 
-2. **Start with Docker Compose**
+2. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env and update values as needed (optional - defaults work for development)
+   ```
+
+3. **Start with Docker Compose**
    ```bash
    docker compose up --build
    ```
 
-3. **Access the dashboard**
+4. **Access the dashboard**
    - **Local setup**: Open http://localhost in your browser
    - **Remote server**: Open http://YOUR_SERVER_IP in your browser
    - **Custom port**: If you modified the Docker Compose file, use the appropriate port
    - Login with default credentials: `admin` / `stagdb123`
 
-4. **Setup your first host**
+5. **Setup your first host**
    - Click "🐳 Setup Docker Host" to configure your environment with guided storage setup
    - The setup wizard includes intelligent storage recommendations and advanced ZFS configuration options
    - Or manually connect to a remote VM with ZFS and Docker support

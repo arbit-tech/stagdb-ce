@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import logging
+import base64
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 
@@ -460,15 +461,29 @@ zfs version
         # Create temporary script file on host
         script_path = "/tmp/install_zfs.sh"
 
-        # Write script to file
-        write_cmd = f"cat > {script_path} << 'EOFZFSINSTALL'\n{script}\nEOFZFSINSTALL"
+        # Encode script in base64 to avoid quoting/escaping issues
+        script_bytes = script.encode('utf-8')
+        script_b64 = base64.b64encode(script_bytes).decode('utf-8')
+
+        # Write script to file using base64 decoding
+        # This approach avoids all shell escaping issues
+        write_cmd = f"echo '{script_b64}' | base64 -d > {script_path}"
+        logger.info(f"Writing installation script to {script_path}")
         success, stdout, stderr = self.execute_host_command(write_cmd, timeout=10)
         if not success:
+            logger.error(f"Failed to write script: {stderr}")
             return False, "", f"Failed to create installation script: {stderr}"
 
+        # Verify the script was written
+        success, stdout, stderr = self.execute_host_command(f"test -f {script_path} && echo 'exists'")
+        if not success or 'exists' not in stdout:
+            return False, "", f"Script file was not created at {script_path}"
+
         # Make script executable
+        logger.info(f"Making script executable")
         success, stdout, stderr = self.execute_host_command(f"chmod +x {script_path}")
         if not success:
+            logger.error(f"Failed to chmod script: {stderr}")
             return False, "", f"Failed to make script executable: {stderr}"
 
         # Execute installation script with extended timeout (5 minutes)

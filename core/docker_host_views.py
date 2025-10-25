@@ -760,6 +760,80 @@ def install_zfs_utilities(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def link_storage_pool(request):
+    """Link an existing ZFS pool to the Docker host"""
+    try:
+        pool_name = request.data.get('pool_name')
+
+        if not pool_name:
+            return Response({
+                'success': False,
+                'message': 'Pool name is required'
+            }, status=400)
+
+        # Get or create Docker host
+        from .models import HostVM, StorageConfiguration
+        docker_host, created = HostVM.get_or_create_docker_host()
+
+        # Check if storage config already exists
+        if docker_host.storage_config:
+            return Response({
+                'success': False,
+                'message': f'Docker host already has a storage configuration: {docker_host.storage_config.name}'
+            }, status=400)
+
+        # Verify the pool exists on the host
+        system_manager = HostSystemManager()
+        zfs_info = system_manager.get_zfs_info()
+
+        pool_exists = False
+        if 'zfs_pools' in zfs_info:
+            for pool in zfs_info['zfs_pools']:
+                if pool['name'] == pool_name:
+                    pool_exists = True
+                    break
+
+        if not pool_exists:
+            return Response({
+                'success': False,
+                'message': f'ZFS pool "{pool_name}" not found on host'
+            }, status=400)
+
+        # Create storage configuration
+        storage_config = StorageConfiguration.objects.create(
+            name=f"{docker_host.name}-{pool_name}",
+            storage_type='existing_pool',
+            existing_pool_name=pool_name,
+            pool_type='single',
+            compression='lz4',
+            dedup=False,
+            is_configured=True,
+            is_active=True
+        )
+
+        # Link to host
+        docker_host.storage_config = storage_config
+        docker_host.save()
+
+        logger.info(f"Linked ZFS pool '{pool_name}' to Docker host")
+
+        return Response({
+            'success': True,
+            'message': f'Successfully linked ZFS pool "{pool_name}" to Docker host',
+            'storage_config_id': storage_config.id
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to link storage pool: {str(e)}")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to link storage pool'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def get_zfs_install_script(request):
     """Get the ZFS installation script for the current OS"""
     try:

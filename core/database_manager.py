@@ -62,9 +62,17 @@ class DatabaseManager:
             allocated_port = self._allocate_port()
             if not allocated_port:
                 return {'success': False, 'message': 'No available ports in range 5432-5500'}
-            
+
             password = self._generate_secure_password()
             container_name = f"stagdb_db_{sanitized_name}"
+
+            # Check if storage configuration exists
+            if not self.host_vm.storage_config:
+                return {
+                    'success': False,
+                    'message': 'Host does not have a storage configuration. Please configure storage for this host first.'
+                }
+
             pool_name = self.host_vm.storage_config.get_pool_name()
             
             # 3. Create ZFS dataset based on creation type

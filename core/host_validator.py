@@ -261,12 +261,14 @@ class HostValidator:
         result = {
             'status': 'unknown',
             'checks': {},
-            'info': {}
+            'info': {},
+            'can_install': False,
+            'os_info': {}
         }
-        
+
         zfs_info = self.system_manager.get_zfs_info()
         result['info'] = zfs_info
-        
+
         # Check ZFS utilities
         if 'zfs_path' in zfs_info and 'zpool_path' in zfs_info:
             result['checks']['utilities'] = {
@@ -279,10 +281,19 @@ class HostValidator:
                 missing.append('zfs')
             if 'zpool_path_error' in zfs_info:
                 missing.append('zpool')
-            
+
+            # Detect OS to check if we can install ZFS
+            os_info = self.system_manager.detect_os()
+            result['os_info'] = os_info
+            result['can_install'] = os_info.get('zfs_installable', False)
+
+            install_hint = ""
+            if result['can_install']:
+                install_hint = f" (can be installed on {os_info.get('pretty_name', 'this system')})"
+
             result['checks']['utilities'] = {
                 'status': 'fail',
-                'message': f"Missing ZFS utilities: {', '.join(missing)}"
+                'message': f"Missing ZFS utilities: {', '.join(missing)}{install_hint}"
             }
         
         # Check ZFS version
@@ -622,10 +633,19 @@ class HostValidator:
         
         for key, name in component_mapping.items():
             component_data = self.validation_results.get(key, {})
-            summary['components'][name] = {
+            component_summary = {
                 'status': component_data.get('status', 'unknown'),
                 'message': component_data.get('message', 'No information available')
             }
+
+            # For ZFS utilities, include installation availability
+            if key == 'zfs_utilities':
+                component_summary['details'] = {
+                    'can_install': component_data.get('can_install', False),
+                    'os_info': component_data.get('os_info', {})
+                }
+
+            summary['components'][name] = component_summary
         
         # Overall message
         if overall_status == 'pass':

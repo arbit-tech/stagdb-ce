@@ -667,16 +667,34 @@ def create_database_host(request):
         if host_type == 'docker':
             # Create or get Docker host
             docker_host, created = HostVM.get_or_create_docker_host()
-            
+
             # Update user-accessible configuration
             docker_host.user_accessible_host = host_data.get('user_accessible_host', 'localhost')
             docker_host.default_username = host_data.get('default_username', 'postgres')
             docker_host.default_port_range = host_data.get('default_port_range', 5432)
+
+            # Create storage configuration from selected pool
+            selected_pool = host_data.get('selected_pool')
+            if selected_pool and not docker_host.storage_config:
+                from .models import StorageConfiguration
+                storage_config = StorageConfiguration.objects.create(
+                    name=f"{docker_host.name}-storage",
+                    storage_type='existing_pool',
+                    existing_pool_name=selected_pool,
+                    pool_type='single',  # Will be updated by storage sync
+                    compression='lz4',
+                    dedup=False,
+                    is_configured=True,
+                    is_active=True
+                )
+                docker_host.storage_config = storage_config
+                logger.info(f"Created storage configuration for pool: {selected_pool}")
+
             docker_host.save()
-            
+
             # Run validation
             validation_results = docker_host.validate_host_system()
-            
+
             if validation_results.get('overall_status') in ['valid', 'warning']:
                 return Response({
                     'success': True,

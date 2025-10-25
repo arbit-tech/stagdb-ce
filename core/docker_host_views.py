@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import HostVM, StorageConfiguration
 from .host_validator import HostValidator
+from .host_system import HostSystemManager
 import logging
 import uuid
 from django.utils import timezone
@@ -482,10 +483,10 @@ def docker_host_validation_status(request):
     try:
         validator = HostValidator()
         validation_results = validator.validate_all()
-        
+
         # Format validation results for the wizard
         formatted_results = {}
-        
+
         component_mapping = {
             'container_environment': 'Container Environment',
             'docker_engine': 'Docker Engine',
@@ -494,13 +495,20 @@ def docker_host_validation_status(request):
             'host_resources': 'Host Resources',
             'network_ports': 'Network Ports'
         }
-        
+
         for key, name in component_mapping.items():
             component_data = validation_results.get(key, {})
+            result_details = component_data.get('info', {})
+
+            # For ZFS utilities, add installation availability info
+            if key == 'zfs_utilities':
+                result_details['can_install'] = component_data.get('can_install', False)
+                result_details['os_info'] = component_data.get('os_info', {})
+
             formatted_results[key] = {
                 'status': component_data.get('status', 'unknown'),
                 'message': component_data.get('message', 'No information available'),
-                'details': component_data.get('info', {})
+                'details': result_details
             }
         
         overall_status = validation_results.get('overall_status', 'unknown')
@@ -668,4 +676,126 @@ def docker_host_summary(request):
             'success': False,
             'error': str(e),
             'message': 'Failed to get Docker host summary'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def detect_host_os(request):
+    """Detect the operating system of the Docker host"""
+    try:
+        system_manager = HostSystemManager()
+        os_info = system_manager.detect_os()
+
+        return Response({
+            'success': True,
+            'os_info': os_info,
+            'message': f"Detected {os_info.get('pretty_name', 'Unknown OS')}"
+        })
+
+    except Exception as e:
+        logger.error(f"OS detection failed: {str(e)}")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to detect operating system'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def install_zfs_utilities(request):
+    """Install ZFS utilities on the Docker host"""
+    try:
+        logger.info("Received request to install ZFS utilities")
+
+        system_manager = HostSystemManager()
+
+        # Detect OS first
+        os_info = system_manager.detect_os()
+        logger.info(f"Detected OS: {os_info}")
+
+        if not os_info.get('zfs_installable'):
+            return Response({
+                'success': False,
+                'message': f"ZFS installation is not supported on {os_info.get('pretty_name', 'this operating system')}",
+                'os_info': os_info
+            }, status=400)
+
+        # Install ZFS
+        logger.info("Starting ZFS installation...")
+        success, stdout, stderr = system_manager.install_zfs(os_info)
+
+        if success:
+            logger.info("ZFS installation completed successfully")
+
+            # Verify installation by checking ZFS again
+            zfs_info = system_manager.get_zfs_info()
+            zfs_installed = 'zfs_path' in zfs_info and 'zpool_path' in zfs_info
+
+            return Response({
+                'success': True,
+                'message': 'ZFS utilities installed successfully',
+                'installation_output': stdout,
+                'zfs_verified': zfs_installed,
+                'zfs_info': zfs_info
+            })
+        else:
+            logger.error(f"ZFS installation failed: {stderr}")
+            return Response({
+                'success': False,
+                'message': 'ZFS installation failed',
+                'error': stderr,
+                'installation_output': stdout
+            }, status=500)
+
+    except Exception as e:
+        logger.error(f"ZFS installation error: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'An error occurred during ZFS installation'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_zfs_install_script(request):
+    """Get the ZFS installation script for the current OS"""
+    try:
+        system_manager = HostSystemManager()
+
+        # Detect OS
+        os_info = system_manager.detect_os()
+
+        if not os_info.get('zfs_installable'):
+            return Response({
+                'success': False,
+                'message': f"ZFS installation is not supported on {os_info.get('pretty_name', 'this operating system')}",
+                'os_info': os_info
+            }, status=400)
+
+        # Generate installation script
+        success, script, message = system_manager.generate_zfs_install_script(os_info)
+
+        if success:
+            return Response({
+                'success': True,
+                'script': script,
+                'os_info': os_info,
+                'message': message
+            })
+        else:
+            return Response({
+                'success': False,
+                'message': message,
+                'os_info': os_info
+            }, status=400)
+
+    except Exception as e:
+        logger.error(f"Failed to generate ZFS install script: {str(e)}")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to generate installation script'
         }, status=500)

@@ -315,3 +315,172 @@ class HostSystemManager:
             port_info['postgresql_ports'] = []
         
         return port_info
+
+    def detect_os(self) -> Dict[str, Any]:
+        """Detect operating system distribution and version"""
+        os_info = {
+            'detected': False,
+            'distribution': 'unknown',
+            'version': 'unknown',
+            'codename': 'unknown',
+            'package_manager': 'unknown',
+            'zfs_installable': False
+        }
+
+        # Get OS release information
+        success, stdout, stderr = self.execute_host_command("cat /etc/os-release")
+        if not success:
+            os_info['error'] = f"Failed to read /etc/os-release: {stderr}"
+            return os_info
+
+        # Parse os-release file
+        os_release = {}
+        for line in stdout.split('\n'):
+            if '=' in line:
+                key, value = line.split('=', 1)
+                os_release[key] = value.strip('"')
+
+        # Extract distribution info
+        os_info['detected'] = True
+        os_info['id'] = os_release.get('ID', 'unknown').lower()
+        os_info['id_like'] = os_release.get('ID_LIKE', '').lower()
+        os_info['version'] = os_release.get('VERSION_ID', 'unknown')
+        os_info['codename'] = os_release.get('VERSION_CODENAME', 'unknown')
+        os_info['pretty_name'] = os_release.get('PRETTY_NAME', 'Unknown OS')
+
+        # Determine distribution family
+        dist_id = os_info['id']
+        dist_like = os_info['id_like']
+
+        if dist_id in ['ubuntu', 'debian'] or 'debian' in dist_like:
+            os_info['distribution'] = 'debian'
+            os_info['package_manager'] = 'apt'
+            os_info['zfs_installable'] = True
+        elif dist_id in ['rhel', 'centos', 'rocky', 'almalinux', 'fedora'] or 'rhel' in dist_like or 'fedora' in dist_like:
+            os_info['distribution'] = 'rhel'
+            os_info['package_manager'] = 'dnf' if dist_id == 'fedora' else 'yum'
+            os_info['zfs_installable'] = True
+        elif dist_id in ['arch', 'manjaro']:
+            os_info['distribution'] = 'arch'
+            os_info['package_manager'] = 'pacman'
+            os_info['zfs_installable'] = True
+        else:
+            os_info['distribution'] = 'unsupported'
+            os_info['zfs_installable'] = False
+
+        return os_info
+
+    def generate_zfs_install_script(self, os_info: Dict[str, Any] = None) -> Tuple[bool, str, str]:
+        """Generate ZFS installation commands based on OS"""
+        if os_info is None:
+            os_info = self.detect_os()
+
+        if not os_info.get('zfs_installable'):
+            return False, "", f"ZFS installation not supported on {os_info.get('pretty_name', 'unknown OS')}"
+
+        distribution = os_info.get('distribution')
+        dist_id = os_info.get('id')
+        version = os_info.get('version')
+
+        scripts = {
+            'debian': {
+                'ubuntu': f"""#!/bin/bash
+set -e
+echo "Installing ZFS on Ubuntu..."
+apt-get update
+apt-get install -y zfsutils-linux
+modprobe zfs
+echo "ZFS installation complete!"
+zfs version
+""",
+                'debian': f"""#!/bin/bash
+set -e
+echo "Installing ZFS on Debian..."
+apt-get update
+apt-get install -y linux-headers-$(uname -r)
+apt-get install -y zfsutils-linux
+modprobe zfs
+echo "ZFS installation complete!"
+zfs version
+"""
+            },
+            'rhel': f"""#!/bin/bash
+set -e
+echo "Installing ZFS on RHEL/CentOS/Rocky Linux..."
+# Install EPEL repository
+yum install -y epel-release
+
+# Install kernel headers and development tools
+yum install -y kernel-devel kernel-headers
+
+# Install ZFS repository
+yum install -y https://zfsonlinux.org/epel/zfs-release-2-2$(rpm --eval "%{{dist}}").noarch.rpm || true
+
+# Import GPG key
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-zfsonlinux || true
+
+# Install ZFS
+yum install -y zfs
+
+# Load ZFS module
+modprobe zfs
+
+echo "ZFS installation complete!"
+zfs version
+""",
+            'arch': f"""#!/bin/bash
+set -e
+echo "Installing ZFS on Arch Linux..."
+pacman -Sy --noconfirm
+pacman -S --noconfirm linux-headers zfs-dkms zfs-utils
+modprobe zfs
+echo "ZFS installation complete!"
+zfs version
+"""
+        }
+
+        if distribution == 'debian':
+            script = scripts['debian'].get(dist_id, scripts['debian']['ubuntu'])
+        elif distribution in scripts:
+            script = scripts[distribution]
+        else:
+            return False, "", f"No installation script available for {distribution}"
+
+        return True, script, "Installation script generated successfully"
+
+    def install_zfs(self, os_info: Dict[str, Any] = None) -> Tuple[bool, str, str]:
+        """Install ZFS utilities on the host system"""
+        logger.info("Starting ZFS installation...")
+
+        # Generate installation script
+        success, script, error_msg = self.generate_zfs_install_script(os_info)
+        if not success:
+            return False, "", error_msg
+
+        # Create temporary script file on host
+        script_path = "/tmp/install_zfs.sh"
+
+        # Write script to file
+        write_cmd = f"cat > {script_path} << 'EOFZFSINSTALL'\n{script}\nEOFZFSINSTALL"
+        success, stdout, stderr = self.execute_host_command(write_cmd, timeout=10)
+        if not success:
+            return False, "", f"Failed to create installation script: {stderr}"
+
+        # Make script executable
+        success, stdout, stderr = self.execute_host_command(f"chmod +x {script_path}")
+        if not success:
+            return False, "", f"Failed to make script executable: {stderr}"
+
+        # Execute installation script with extended timeout (5 minutes)
+        logger.info(f"Executing ZFS installation script: {script_path}")
+        success, stdout, stderr = self.execute_host_command(f"bash {script_path}", timeout=300)
+
+        # Clean up script
+        self.execute_host_command(f"rm -f {script_path}")
+
+        if success:
+            logger.info("ZFS installation completed successfully")
+            return True, stdout, "ZFS installed successfully"
+        else:
+            logger.error(f"ZFS installation failed: {stderr}")
+            return False, stdout, f"Installation failed: {stderr}"

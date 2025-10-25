@@ -1074,9 +1074,9 @@
                 messageDiv.className = 'validation-status error';
                 textDiv.textContent = '❌ Host validation failed. Please address the issues below.';
                 validationPassed = false;
-                
+
                 document.getElementById('next-btn').disabled = true;
-                
+
                 // Show remediation steps if available
                 if (data.remediation_steps && data.remediation_steps.length > 0) {
                     stepsDiv.classList.remove('hidden');
@@ -1088,22 +1088,55 @@
                     });
                 }
             }
-            
+
             // Show validation details if available
             if (data.components) {
                 let detailsHtml = '<div style="margin-top: 15px;"><strong>Component Status:</strong><br>';
+                let zfsCanInstall = false;
+                let zfsOsInfo = null;
+
                 for (const [name, component] of Object.entries(data.components)) {
-                    const statusClass = component.status === 'pass' ? 'pass' : 
+                    const statusClass = component.status === 'pass' ? 'pass' :
                                        component.status === 'warning' ? 'warning' : 'fail';
                     detailsHtml += `<div class="validation-check">
                         <div class="check-status ${statusClass}">
-                            ${component.status === 'pass' ? '✓' : 
+                            ${component.status === 'pass' ? '✓' :
                               component.status === 'warning' ? '!' : '✗'}
                         </div>
                         <span><strong>${name}:</strong> ${component.message}</span>
                     </div>`;
+
+                    // Check if this is ZFS Utilities failure with installation option
+                    if (name === 'ZFS Utilities' && component.status === 'fail' && component.details) {
+                        zfsCanInstall = component.details.can_install || false;
+                        zfsOsInfo = component.details.os_info || null;
+                    }
                 }
                 detailsHtml += '</div>';
+
+                // Add Install ZFS button if ZFS is missing and installable
+                if (zfsCanInstall && zfsOsInfo) {
+                    detailsHtml += `
+                        <div style="margin-top: 20px; padding: 15px; background: #ebf8ff; border: 1px solid #90cdf4; border-radius: 8px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div style="flex: 1;">
+                                    <strong style="color: #2c5282;">📦 ZFS Installation Available</strong>
+                                    <p style="margin: 5px 0 0 0; color: #2c5282; font-size: 14px;">
+                                        ZFS can be automatically installed on ${zfsOsInfo.pretty_name || 'this system'}
+                                    </p>
+                                </div>
+                                <button
+                                    class="btn btn-primary"
+                                    onclick="installZFS()"
+                                    id="install-zfs-btn"
+                                    style="margin-left: 15px;">
+                                    Install ZFS Now
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 detailsDiv.innerHTML = detailsHtml;
             }
         }
@@ -1640,6 +1673,55 @@
                 nextBtn.classList.remove('loading');
                 nextBtn.disabled = false;
                 nextBtn.textContent = 'Complete Setup';
+            }
+        }
+
+        async function installZFS() {
+            const installBtn = document.getElementById('install-zfs-btn');
+            const originalText = installBtn.textContent;
+
+            installBtn.disabled = true;
+            installBtn.classList.add('loading');
+            installBtn.textContent = 'Installing ZFS...';
+
+            try {
+                console.log('Starting ZFS installation...');
+
+                const response = await fetch('/api/hosts/docker-host/install-zfs/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+
+                const data = await response.json();
+                console.log('Installation response:', data);
+
+                if (data.success) {
+                    // Show success message
+                    alert('✅ ZFS installed successfully! Re-running validation...');
+
+                    // Re-run validation
+                    await validateHost();
+                } else {
+                    // Show error message
+                    alert(`❌ ZFS installation failed: ${data.message || data.error}\n\nOutput:\n${data.installation_output || 'No output available'}`);
+
+                    // Reset button
+                    installBtn.classList.remove('loading');
+                    installBtn.disabled = false;
+                    installBtn.textContent = originalText;
+                }
+
+            } catch (error) {
+                console.error('ZFS installation error:', error);
+                alert(`Error during ZFS installation: ${error.message}`);
+
+                // Reset button
+                installBtn.classList.remove('loading');
+                installBtn.disabled = false;
+                installBtn.textContent = originalText;
             }
         }
 

@@ -84,6 +84,9 @@ urlpatterns = [
     path('api/hosts/docker-host/validation-status/', docker_host_views.docker_host_validation_status, name='docker_host_validation_status'),
     path('api/hosts/docker-host/summary/', docker_host_views.docker_host_summary, name='docker_host_summary'),
     path('api/hosts/docker-host/remove/', docker_host_views.remove_docker_host, name='remove_docker_host'),
+    path('api/hosts/docker-host/detect-os/', docker_host_views.detect_host_os, name='detect_host_os'),
+    path('api/hosts/docker-host/install-zfs/', docker_host_views.install_zfs_utilities, name='install_zfs_utilities'),
+    path('api/hosts/docker-host/zfs-install-script/', docker_host_views.get_zfs_install_script, name='get_zfs_install_script'),
     
     # Storage synchronization URLs
     path('api/storage/sync/status/', storage_sync_views.storage_sync_status, name='storage_sync_status'),

@@ -80,10 +80,17 @@ class HostSystemManager:
         if not self.is_in_container:
             # If not in container, execute directly
             return self.execute_command(command, timeout)
-        
+
         # Use nsenter to access host namespace
-        host_command = f"nsenter -t 1 -m -p {command}"
+        # Wrap command in sh -c to ensure pipes, redirections, and compound commands work correctly
+        host_command = f"nsenter -t 1 -m -p sh -c {self._quote_shell_arg(command)}"
         return self.execute_command(host_command, timeout)
+
+    def _quote_shell_arg(self, arg: str) -> str:
+        """Quote a shell argument to make it safe for passing to sh -c"""
+        # Escape single quotes by replacing ' with '\''
+        escaped = arg.replace("'", "'\"'\"'")
+        return f"'{escaped}'"
     
     def get_system_info(self) -> Dict[str, Any]:
         """Get basic system information"""
@@ -466,8 +473,8 @@ zfs version
         script_b64 = base64.b64encode(script_bytes).decode('utf-8')
 
         # Write script to file using base64 decoding
-        # This approach avoids all shell escaping issues
-        write_cmd = f"echo '{script_b64}' | base64 -d > {script_path}"
+        # Use printf to avoid issues with echo and special characters
+        write_cmd = f"printf '%s' {script_b64} | base64 -d > {script_path}"
         logger.info(f"Writing installation script to {script_path}")
         success, stdout, stderr = self.execute_host_command(write_cmd, timeout=10)
         if not success:
@@ -475,8 +482,12 @@ zfs version
             return False, "", f"Failed to create installation script: {stderr}"
 
         # Verify the script was written
-        success, stdout, stderr = self.execute_host_command(f"test -f {script_path} && echo 'exists'")
+        success, stdout, stderr = self.execute_host_command(f"test -f {script_path} && echo exists")
         if not success or 'exists' not in stdout:
+            logger.error(f"Script verification failed - file not found at {script_path}")
+            # Try to debug - check if /tmp exists and is writable
+            debug_success, debug_out, debug_err = self.execute_host_command("ls -la /tmp/ | head -5")
+            logger.error(f"Debug - /tmp listing: {debug_out}")
             return False, "", f"Script file was not created at {script_path}"
 
         # Make script executable

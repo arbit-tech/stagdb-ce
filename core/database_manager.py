@@ -63,7 +63,6 @@ class DatabaseManager:
             if not allocated_port:
                 return {'success': False, 'message': 'No available ports in range 5432-5500'}
 
-            password = self._generate_secure_password()
             container_name = f"stagdb_db_{sanitized_name}"
 
             # Check if storage configuration exists
@@ -74,9 +73,11 @@ class DatabaseManager:
                 }
 
             pool_name = self.host_vm.storage_config.get_pool_name()
-            
+
             # 3. Create ZFS dataset based on creation type
             source_db = None
+            password = None  # Will be set based on creation type
+
             if creation_type == 'clone' and source_database_id:
                 try:
                     # Allow cloning from databases on any host (cross-host cloning)
@@ -86,19 +87,33 @@ class DatabaseManager:
                 # Check if source database is on the same host
                 if source_db.host_vm.id != self.host_vm.id:
                     return {'success': False, 'message': 'Cross-host cloning is not yet supported. Source database must be on the same host.'}
-                
+
+                # IMPORTANT: Use source database's password for clones
+                # When cloning via ZFS, we copy the entire data directory including password hashes
+                # PostgreSQL ignores POSTGRES_PASSWORD env var when data dir already exists
+                password = source_db.password
+                logger.info(f"Cloning database '{source_db.name}' - reusing source password")
+
                 dataset_result = self.zfs_manager.create_dataset_from_clone(
                     source_db.zfs_dataset, sanitized_name, pool_name, database=None,
                     context={'creation_type': 'clone', 'source_database': source_db.name}
                 )
             elif creation_type == 'snapshot' and source_snapshot:
+                # TODO: For snapshot restoration, we should try to find the source database
+                # and reuse its password, since we're copying the data directory
+                # For now, generate a new password (may require manual password reset)
+                password = self._generate_secure_password()
+                logger.warning(f"Restoring from snapshot '{source_snapshot}' - new password generated. May need manual reset.")
+
                 dataset_result = self.zfs_manager.create_dataset_from_snapshot(
                     source_snapshot, sanitized_name, pool_name, database=None,
                     context={'creation_type': 'snapshot', 'source_snapshot': source_snapshot}
                 )
             else:
-                # Default to empty dataset
+                # Default to empty dataset - generate new password
                 creation_type = 'empty'
+                password = self._generate_secure_password()
+
                 dataset_result = self.zfs_manager.create_dataset_from_empty(
                     pool_name, sanitized_name, database=None,
                     context={'creation_type': 'empty'}
@@ -112,7 +127,16 @@ class DatabaseManager:
             
             dataset_path = dataset_result['dataset_path']
             mount_path = dataset_result['mount_path']
-            
+
+            # Ensure password was set
+            if not password:
+                logger.error("Password was not set for database creation")
+                self.zfs_manager.destroy_database_dataset(dataset_path)
+                return {
+                    'success': False,
+                    'message': 'Internal error: Password was not set during database creation'
+                }
+
             # 4. Deploy PostgreSQL container
             container_config = {
                 'name': container_name,

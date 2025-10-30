@@ -172,6 +172,22 @@ class DatabaseManager:
                     'success': False,
                     'message': f"Database initialization failed: {init_result['message']}"
                 }
+
+            # 5b. For clones, rename the database inside PostgreSQL to match the new name
+            if creation_type == 'clone' and source_db:
+                source_db_name = source_db.database_name
+                if source_db_name != sanitized_name:
+                    logger.info(f"Renaming cloned database from '{source_db_name}' to '{sanitized_name}'")
+                    rename_result = self._rename_database_internal(
+                        container_name, source_db_name, sanitized_name, password
+                    )
+                    if not rename_result['success']:
+                        logger.error(f"Failed to rename database: {rename_result['message']}")
+                        # Don't fail the entire operation, but log it
+                        # The user can still connect using the source database name
+                        logger.warning(f"Clone created but database name is '{source_db_name}' instead of '{sanitized_name}'")
+                        # Update the database_name to reflect reality
+                        sanitized_name = source_db_name
             
             # 6. Create Database record with lineage tracking
             database = Database.objects.create(
@@ -556,7 +572,39 @@ class DatabaseManager:
             time.sleep(2)
         
         return {'success': False, 'message': f'Database initialization timed out after {timeout} seconds'}
-    
+
+    def _rename_database_internal(self, container_name: str, old_name: str, new_name: str, password: str) -> Dict:
+        """Rename a database inside PostgreSQL after cloning"""
+        try:
+            logger.info(f"Renaming database from '{old_name}' to '{new_name}' in container {container_name}")
+
+            # Step 1: Terminate all connections to the old database
+            terminate_sql = f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{old_name}' AND pid <> pg_backend_pid();"
+            success, stdout, stderr = self.container_utils.execute_in_container(
+                container_name,
+                f"psql -U postgres -d postgres -c \"{terminate_sql}\""
+            )
+            if not success:
+                logger.warning(f"Could not terminate connections: {stderr}")
+
+            # Step 2: Rename the database
+            rename_sql = f"ALTER DATABASE {old_name} RENAME TO {new_name};"
+            success, stdout, stderr = self.container_utils.execute_in_container(
+                container_name,
+                f"psql -U postgres -d postgres -c \"{rename_sql}\""
+            )
+
+            if success or 'ALTER DATABASE' in stdout:
+                logger.info(f"Successfully renamed database from '{old_name}' to '{new_name}'")
+                return {'success': True, 'message': f'Database renamed to {new_name}'}
+            else:
+                logger.error(f"Failed to rename database: {stderr}")
+                return {'success': False, 'message': f'Rename failed: {stderr}'}
+
+        except Exception as e:
+            logger.error(f"Error renaming database: {str(e)}")
+            return {'success': False, 'message': f'Error: {str(e)}'}
+
     def _create_root_snapshot(self, database: Database) -> Dict:
         """Create initial snapshot (root branch)"""
         try:

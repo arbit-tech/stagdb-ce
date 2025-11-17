@@ -332,7 +332,8 @@ class HostSystemManager:
             'version': 'unknown',
             'codename': 'unknown',
             'package_manager': 'unknown',
-            'zfs_installable': False
+            'zfs_installable': False,
+            'secure_boot_enabled': False
         }
 
         # Get OS release information
@@ -376,6 +377,18 @@ class HostSystemManager:
             os_info['distribution'] = 'unsupported'
             os_info['zfs_installable'] = False
 
+        # Check for Secure Boot status
+        sb_success, sb_stdout, sb_stderr = self.execute_host_command("mokutil --sb-state 2>/dev/null || echo 'mokutil not available'")
+        if sb_success and 'SecureBoot enabled' in sb_stdout:
+            os_info['secure_boot_enabled'] = True
+        elif sb_success and 'SecureBoot disabled' in sb_stdout:
+            os_info['secure_boot_enabled'] = False
+        else:
+            # Try alternative method using bootctl (systemd-boot)
+            bootctl_success, bootctl_stdout, bootctl_stderr = self.execute_host_command("bootctl status 2>/dev/null | grep -i 'secure boot' || echo 'bootctl not available'")
+            if bootctl_success and 'enabled' in bootctl_stdout.lower():
+                os_info['secure_boot_enabled'] = True
+
         return os_info
 
     def generate_zfs_install_script(self, os_info: Dict[str, Any] = None) -> Tuple[bool, str, str]:
@@ -395,20 +408,122 @@ class HostSystemManager:
                 'ubuntu': f"""#!/bin/bash
 set -e
 echo "Installing ZFS on Ubuntu..."
+
+# Check if Secure Boot is enabled
+SECURE_BOOT_ENABLED=false
+if command -v mokutil &> /dev/null; then
+    if mokutil --sb-state 2>/dev/null | grep -q "SecureBoot enabled"; then
+        SECURE_BOOT_ENABLED=true
+        echo "⚠️  Secure Boot is enabled"
+    fi
+fi
+
 apt-get update
 apt-get install -y zfsutils-linux
-modprobe zfs
-echo "ZFS installation complete!"
+
+# Try to load the ZFS module
+echo "Attempting to load ZFS kernel module..."
+if ! modprobe zfs 2>/dev/null; then
+    if [ "$SECURE_BOOT_ENABLED" = true ]; then
+        echo ""
+        echo "❌ ERROR: ZFS module failed to load due to Secure Boot restrictions"
+        echo ""
+        echo "ZFS packages are installed but the kernel module cannot be loaded because:"
+        echo "  - Secure Boot is enabled on this system"
+        echo "  - ZFS modules are not signed with keys trusted by Secure Boot"
+        echo ""
+        echo "To fix this issue, you have 3 options:"
+        echo ""
+        echo "Option 1 - Disable Secure Boot (Recommended for ZFS):"
+        echo "  1. Reboot the system"
+        echo "  2. Enter BIOS/UEFI settings (usually F2, F10, F12, or Del during boot)"
+        echo "  3. Find the Secure Boot setting (usually under Security or Boot menu)"
+        echo "  4. Disable Secure Boot"
+        echo "  5. Save and reboot"
+        echo "  6. Run: sudo modprobe zfs"
+        echo ""
+        echo "Option 2 - Change Secure Boot to Setup/Audit Mode (if available):"
+        echo "  1. In BIOS, change from 'Deployed Mode' to 'Setup Mode' or 'Audit Mode'"
+        echo "  2. This allows unsigned modules while keeping Secure Boot active"
+        echo ""
+        echo "Option 3 - Sign the ZFS modules (Advanced):"
+        echo "  1. Generate MOK (Machine Owner Key) keypair"
+        echo "  2. Enroll the key with mokutil"
+        echo "  3. Sign ZFS kernel modules with your key"
+        echo "  See: https://ubuntu.com/server/docs/security-trust-store-and-secure-boot for details"
+        echo ""
+        echo "After applying a fix, re-run the host validation in StagDB."
+        exit 1
+    else
+        echo "❌ ERROR: Failed to load ZFS module"
+        echo "Error details:"
+        modprobe zfs 2>&1 || true
+        exit 1
+    fi
+fi
+
+echo "✅ ZFS installation complete!"
 zfs version
 """,
                 'debian': f"""#!/bin/bash
 set -e
 echo "Installing ZFS on Debian..."
+
+# Check if Secure Boot is enabled
+SECURE_BOOT_ENABLED=false
+if command -v mokutil &> /dev/null; then
+    if mokutil --sb-state 2>/dev/null | grep -q "SecureBoot enabled"; then
+        SECURE_BOOT_ENABLED=true
+        echo "⚠️  Secure Boot is enabled"
+    fi
+fi
+
 apt-get update
 apt-get install -y linux-headers-$(uname -r)
 apt-get install -y zfsutils-linux
-modprobe zfs
-echo "ZFS installation complete!"
+
+# Try to load the ZFS module
+echo "Attempting to load ZFS kernel module..."
+if ! modprobe zfs 2>/dev/null; then
+    if [ "$SECURE_BOOT_ENABLED" = true ]; then
+        echo ""
+        echo "❌ ERROR: ZFS module failed to load due to Secure Boot restrictions"
+        echo ""
+        echo "ZFS packages are installed but the kernel module cannot be loaded because:"
+        echo "  - Secure Boot is enabled on this system"
+        echo "  - ZFS modules are not signed with keys trusted by Secure Boot"
+        echo ""
+        echo "To fix this issue, you have 3 options:"
+        echo ""
+        echo "Option 1 - Disable Secure Boot (Recommended for ZFS):"
+        echo "  1. Reboot the system"
+        echo "  2. Enter BIOS/UEFI settings (usually F2, F10, F12, or Del during boot)"
+        echo "  3. Find the Secure Boot setting (usually under Security or Boot menu)"
+        echo "  4. Disable Secure Boot"
+        echo "  5. Save and reboot"
+        echo "  6. Run: sudo modprobe zfs"
+        echo ""
+        echo "Option 2 - Change Secure Boot to Setup/Audit Mode (if available):"
+        echo "  1. In BIOS, change from 'Deployed Mode' to 'Setup Mode' or 'Audit Mode'"
+        echo "  2. This allows unsigned modules while keeping Secure Boot active"
+        echo ""
+        echo "Option 3 - Sign the ZFS modules (Advanced):"
+        echo "  1. Generate MOK (Machine Owner Key) keypair"
+        echo "  2. Enroll the key with mokutil"
+        echo "  3. Sign ZFS kernel modules with your key"
+        echo "  See: https://wiki.debian.org/SecureBoot for details"
+        echo ""
+        echo "After applying a fix, re-run the host validation in StagDB."
+        exit 1
+    else
+        echo "❌ ERROR: Failed to load ZFS module"
+        echo "Error details:"
+        modprobe zfs 2>&1 || true
+        exit 1
+    fi
+fi
+
+echo "✅ ZFS installation complete!"
 zfs version
 """
             },

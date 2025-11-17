@@ -336,9 +336,18 @@ class HostValidator:
                 'value': zfs_info['zfs_modules']
             }
         else:
+            module_error = zfs_info.get('zfs_modules_error', 'Unknown error')
+            error_msg = f"ZFS kernel modules not loaded: {module_error}"
+
+            # Check if this is a Secure Boot issue
+            os_info = result.get('os_info') or self.system_manager.detect_os()
+            if os_info.get('secure_boot_enabled') and 'key' in module_error.lower():
+                error_msg += " (Secure Boot is blocking unsigned ZFS modules)"
+                result['secure_boot_issue'] = True
+
             result['checks']['kernel_modules'] = {
                 'status': 'fail',
-                'message': f"ZFS kernel modules not loaded: {zfs_info.get('zfs_modules_error', 'Unknown error')}"
+                'message': error_msg
             }
         
         # Determine overall status

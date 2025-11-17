@@ -790,10 +790,21 @@ def _generate_remediation_steps(validation_results):
     # ZFS issues
     zfs_utilities = components.get('zfs_utilities', {})
     if zfs_utilities.get('status') == 'fail':
-        remediation_steps.extend([
-            'Install ZFS utilities: sudo apt-get install zfsutils-linux',
-            'Load ZFS kernel module: sudo modprobe zfs'
-        ])
+        # Check if this is a Secure Boot issue
+        if zfs_utilities.get('secure_boot_issue'):
+            remediation_steps.extend([
+                'ZFS modules cannot load due to Secure Boot restrictions',
+                'Option 1 (Recommended): Disable Secure Boot in BIOS/UEFI settings',
+                'Option 2: Change Secure Boot from "Deployed Mode" to "Setup/Audit Mode" in BIOS',
+                'Option 3 (Advanced): Sign ZFS modules with Machine Owner Key (MOK)',
+                'After fixing Secure Boot, run: sudo modprobe zfs',
+                'See installation wizard for detailed Secure Boot instructions'
+            ])
+        else:
+            remediation_steps.extend([
+                'Install ZFS utilities: sudo apt-get install zfsutils-linux',
+                'Load ZFS kernel module: sudo modprobe zfs'
+            ])
     
     zfs_pools = components.get('zfs_pools', {})
     if zfs_pools.get('status') == 'fail':

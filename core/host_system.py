@@ -215,7 +215,18 @@ class HostSystemManager:
         if success:
             info['zfs_modules'] = stdout
         else:
-            info['zfs_modules_error'] = stderr
+            # Module not loaded - try to get the actual error by attempting to load it
+            load_success, load_stdout, load_stderr = self.execute_host_command("modprobe zfs 2>&1")
+            if load_success:
+                # Module loaded successfully, check again
+                recheck_success, recheck_stdout, _ = self.execute_host_command("lsmod | grep zfs")
+                if recheck_success:
+                    info['zfs_modules'] = recheck_stdout
+                else:
+                    info['zfs_modules_error'] = "Module loaded but not showing in lsmod"
+            else:
+                # Capture the actual modprobe error (this is where "Key was rejected" appears)
+                info['zfs_modules_error'] = load_stderr if load_stderr else "Module not loaded"
         
         # List ZFS pools
         success, stdout, stderr = self.execute_host_command("zpool list -H -o name,size,free,health")

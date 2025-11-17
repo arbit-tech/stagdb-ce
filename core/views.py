@@ -791,9 +791,14 @@ def _generate_remediation_steps(validation_results):
     zfs_utilities = components.get('zfs_utilities', {})
     if zfs_utilities.get('status') == 'fail':
         # Check if this is a Secure Boot issue
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"ZFS utilities validation failed. Secure Boot issue flag: {zfs_utilities.get('secure_boot_issue')}")
+        logger.info(f"ZFS utilities full data: {zfs_utilities}")
+
         if zfs_utilities.get('secure_boot_issue'):
             remediation_steps.extend([
-                'ZFS modules cannot load due to Secure Boot restrictions',
+                '⚠️  ZFS modules cannot load due to Secure Boot restrictions',
                 'Option 1 (Recommended): Disable Secure Boot in BIOS/UEFI settings',
                 'Option 2: Change Secure Boot from "Deployed Mode" to "Setup/Audit Mode" in BIOS',
                 'Option 3 (Advanced): Sign ZFS modules with Machine Owner Key (MOK)',

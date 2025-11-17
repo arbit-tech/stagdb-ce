@@ -906,8 +906,16 @@
                 document.getElementById('next-btn').onclick = nextStep;
                 
             } else if (currentStep === 2) {
-                if (!validationPassed) {
+                const nextBtn = document.getElementById('next-btn');
+                const isValidating = nextBtn.classList.contains('loading');
+
+                if (isValidating) {
                     alert('Please wait for host validation to complete');
+                    return;
+                }
+
+                if (!validationPassed) {
+                    alert('Host validation failed. Please fix the issues before proceeding.');
                     return;
                 }
                 currentStep = 3;
@@ -1036,7 +1044,6 @@
                 });
             } finally {
                 nextBtn.classList.remove('loading');
-                nextBtn.disabled = false;
                 nextBtn.textContent = originalText;
             }
         }

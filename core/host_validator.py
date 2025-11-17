@@ -339,11 +339,15 @@ class HostValidator:
             module_error = zfs_info.get('zfs_modules_error', 'Unknown error')
             error_msg = f"ZFS kernel modules not loaded: {module_error}"
 
-            # Check if this is a Secure Boot issue
-            os_info = result.get('os_info') or self.system_manager.detect_os()
-            if os_info.get('secure_boot_enabled') and 'key' in module_error.lower():
+            # Check if this is a Secure Boot issue based on error message
+            # The error "Key was rejected by service" is the telltale sign
+            if 'key' in module_error.lower() and 'reject' in module_error.lower():
                 error_msg += " (Secure Boot is blocking unsigned ZFS modules)"
                 result['secure_boot_issue'] = True
+
+                # Also try to detect Secure Boot status for confirmation
+                os_info = result.get('os_info') or self.system_manager.detect_os()
+                result['secure_boot_detected'] = os_info.get('secure_boot_enabled', False)
 
             result['checks']['kernel_modules'] = {
                 'status': 'fail',
